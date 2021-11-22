@@ -2,6 +2,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.20 FATAL_ERROR)
 
 PROJECT(CudaVoxelize LANGUAGES CXX CUDA)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 FIND_PACKAGE(glm CONFIG REQUIRED)
 FIND_PACKAGE(OpenMP REQUIRED)
 FIND_PACKAGE(CUDAToolkit REQUIRED)
@@ -59,7 +60,7 @@ include_directories("include")
 
 file (GLOB SOURCE_FILES "src/*.cpp")
 file (GLOB HEADER_FILES "src/*.hpp")
-file (GLOB PYTHON_FILES "python/*.cpp" "python/*.hpp")
+file (GLOB PYTHON_FILES "python/python_bind.cpp" "python/*.hpp")
 
 find_package(pybind11 REQUIRED)
 pybind11_add_module(CudaVox

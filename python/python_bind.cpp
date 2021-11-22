@@ -1,4 +1,6 @@
 #include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 // Standard libs
 #include <string>
 #include <cstdio>
@@ -35,8 +37,29 @@ void check_filename(string filename){
     throw "[ERROR] filename is empty!";
 	    }
 }
+	//note: lx,ly and lz are the max length in each dim in this case = gridsize
+	// unrool is the 
+	int unroll(int x, int y, int z, int lx, int ly, int lz){
+	  return x + y*lx + z*lx*ly;
+	}
 
-void run(string filename = "", bool useThrustPath = false, bool forceCPU = false, bool solid = false, unsigned int gridsize = 256){
+	int getx(int unrolled, int lx, int ly, int lz){
+    // ly and lz not used - kept only for consistency
+	  return unrolled % lx;
+	}
+
+	int gety(int unrolled, int lx, int ly, int lz){
+    // lz not used - kept only for consistency
+	  return (unrolled / lx) % ly;
+	}
+
+	int getz(int unrolled, int lx, int ly, int lz){
+   // the last % lz should not be necessary
+  // it is not used, by the way
+	  return ((unrolled / lx) / ly) % lz;
+	}
+
+py::array_t<double>run(string filename = "", bool useThrustPath = false, bool forceCPU = false, bool solid = false, unsigned int gridsize = 256){
 
   try{
     check_filename(filename);
@@ -56,6 +79,8 @@ void run(string filename = "", bool useThrustPath = false, bool forceCPU = false
 	trimesh::TriMesh::set_verbose(true);
 #endif
 	fprintf(stdout, "[I/O] Reading mesh from %s \n", filename.c_str());
+	trimesh::TriMesh *mesh = new trimesh::TriMesh();
+   
 	trimesh::TriMesh* themesh = trimesh::TriMesh::read(filename.c_str());
 	
 	themesh->need_faces(); // Trimesh: Unpack (possible) triangle strips so we have faces for sure
@@ -126,21 +151,39 @@ void run(string filename = "", bool useThrustPath = false, bool forceCPU = false
 		}
 	}
 
-	//// DEBUG: print vtable
-	for (int i = 0; i < vtable_size; i++) {
-		char* vtable_p = (char*)vtable;
-       	cout << (int) vtable_p[i] << endl;
-	}
 
+	py::array_t<double> result = py::array_t<double>({gridsize,gridsize,gridsize});
+        py::buffer_info info = result.request();
+	auto ptr = static_cast<double *>(info.ptr); //pointer to the start of the array
+
+	//N is the total numer of elemnts in the nparray r is a std::vector containing the number of elements in each dim
+	int N = 1;
+	for (auto r: info.shape) {
+	  cout << r;
+	  N *= r;
+	}
+	
+	for (int n = 0; n < N; n++) {
+	  int x = getx(n,gridsize,gridsize,gridsize);
+	  int y = gety(n,gridsize,gridsize,gridsize);
+	  int z = getz(n,gridsize,gridsize,gridsize);
+	  
+	  // the checkVoxel function returns either true or false which we can use as 0 or 1 in the
+	  // array to save using if statements inside the loop.
+	  *ptr = checkVoxel(x, y, z, voxelization_info.gridsize, vtable);
+	  ptr++;
+	    }
+        
 	fprintf(stdout, "\n## STATS \n");
 	t.stop(); fprintf(stdout, "[Perf] Total runtime: %.1f ms \n", t.elapsed_time_milliseconds);
+	return result;
 }
 
 
 PYBIND11_MODULE(CudaVox, m) {
     // Optional docstring
     m.doc() = "python  link into cudavox";
-    m.def("test",&run,"function to perform the voxelization",
+    m.def("run",&run,"function to perform the voxelization",
 	  py::arg("filename") ="", py::arg("useThrustPath") = false,
 	  py::arg("forceCPU") = false, py::arg("solid") = false,
 	  py::arg("gridsize") = 256);
