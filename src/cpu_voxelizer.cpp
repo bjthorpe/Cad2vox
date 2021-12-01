@@ -36,7 +36,7 @@ namespace cpu_voxelizer {
 	}
 
 	// Mesh voxelization method
-	void cpu_voxelize_mesh(voxinfo info, trimesh::TriMesh* themesh, unsigned int* voxel_table, bool morton_order) {
+  void cpu_voxelize_mesh(voxinfo info, trimesh::TriMesh* themesh, unsigned int* voxel_table, bool** tri_table, bool morton_order) {
 		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
 		//// Common variables used in the voxelization process
 		//glm::vec3 delta_p(info.unit.x, info.unit.y, info.unit.z);
@@ -178,6 +178,10 @@ namespace cpu_voxelizer {
 							size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y)* static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z)* static_cast<size_t>(info.gridsize.y)* static_cast<size_t>(info.gridsize.z));
 							//std:: cout << "Voxel found at " << x << " " << y << " " << z << std::endl;
 							setBit(voxel_table, location);
+							int int_location = location / size_t(32);
+							tri_table[i][int_location] = true;
+							
+							
 						}
 						continue;
 					}

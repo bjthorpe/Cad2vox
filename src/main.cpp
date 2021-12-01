@@ -211,7 +211,7 @@ int main(int argc, char* argv[]) {
 	// Compute space needed to hold voxel table (1 voxel / bit)
 	size_t vtable_size = static_cast<size_t>(ceil(static_cast<size_t>(voxelization_info.gridsize.x) * static_cast<size_t>(voxelization_info.gridsize.y) * static_cast<size_t>(voxelization_info.gridsize.z)) / 8.0f);
 	unsigned int* vtable; // Both voxelization paths (GPU and CPU) need this
-
+	bool** tri_table;
 	bool cuda_ok = false;
 	if (!forceCPU)
 	{
@@ -254,11 +254,17 @@ int main(int argc, char* argv[]) {
 		else { fprintf(stdout, "[Info] Doing CPU voxelization (forced using command-line switch -cpu)\n"); }
 		// allocate zero-filled array
 		vtable = (unsigned int*) calloc(1, vtable_size);
+		tri_table = (bool**)calloc(voxelization_info.n_triangles,sizeof(bool*));
+		for(int i = 0; i < 100; ++i) {
+
+		  tri_table[i] = (bool *) calloc(vtable_size, sizeof(bool));
+		}
+	     
 		if (!solidVoxelization) {
-			cpu_voxelizer::cpu_voxelize_mesh(voxelization_info, themesh, vtable, (outputformat == OutputFormat::output_morton));
+		  cpu_voxelizer::cpu_voxelize_mesh(voxelization_info, themesh, vtable, tri_table, (outputformat == OutputFormat::output_morton));
 		}
 		else {
-			cpu_voxelizer::cpu_voxelize_mesh_solid(voxelization_info, themesh, vtable, (outputformat == OutputFormat::output_morton));
+		  cpu_voxelizer::cpu_voxelize_mesh_solid(voxelization_info, themesh, vtable, (outputformat == OutputFormat::output_morton));
 		}
 	}
 

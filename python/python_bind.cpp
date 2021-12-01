@@ -100,6 +100,7 @@ py::array_t<double>run(string filename = "", bool useThrustPath = false, bool fo
 	// Compute space needed to hold voxel table (1 voxel / bit)
 	size_t vtable_size = static_cast<size_t>(ceil(static_cast<size_t>(voxelization_info.gridsize.x) * static_cast<size_t>(voxelization_info.gridsize.y) * static_cast<size_t>(voxelization_info.gridsize.z)) / 8.0f);
 	unsigned int* vtable; // Both voxelization paths (GPU and CPU) need this
+	bool (**tri_table);
 
 	bool cuda_ok = false;
 	if (!forceCPU)
@@ -143,8 +144,14 @@ py::array_t<double>run(string filename = "", bool useThrustPath = false, bool fo
 		else { fprintf(stdout, "[Info] Doing CPU voxelization (forced using command-line switch -cpu)\n"); }
 		// allocate zero-filled array
 		vtable = (unsigned int*) calloc(1, vtable_size);
+		tri_table = (bool**)calloc(voxelization_info.n_triangles,sizeof(bool*));
+		for(int i = 0; i < 100; ++i) {
+
+		  tri_table[i] = (bool *) calloc(vtable_size, sizeof(bool));
+		}
+		
 		if (!solid) {
-		        cpu_voxelizer::cpu_voxelize_mesh(voxelization_info, themesh, vtable, use_morton_code);
+		  cpu_voxelizer::cpu_voxelize_mesh(voxelization_info, themesh, vtable, tri_table, use_morton_code);
 		}
 		else {
 		        cpu_voxelizer::cpu_voxelize_mesh_solid(voxelization_info, themesh, vtable, use_morton_code);
@@ -159,7 +166,6 @@ py::array_t<double>run(string filename = "", bool useThrustPath = false, bool fo
 	//N is the total numer of elemnts in the nparray r is a std::vector containing the number of elements in each dim
 	int N = 1;
 	for (auto r: info.shape) {
-	  cout << r;
 	  N *= r;
 	}
 	
