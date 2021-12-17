@@ -1,9 +1,23 @@
 #include "cpu_voxelizer.h"
 #include <omp.h>
+#include <pybind11/eigen.h>
 
 #define float_error 0.000001
 
 namespace cpu_voxelizer {
+
+  //function to get value at indices of 2d np array. takes in 4 values  a pointer to the start of the array, the shape of the array,
+// and two indices X and Y. The pointer to the first element and shape of the array are obtained from 
+// info = array.request as info.ptr and info.shape see pybind11 docs for more details if needed. 
+double get_value_from_nparr(double* nparray,std::vector<py::ssize_t> shape, size_t X, size_t Y){
+
+  int stop = Y*shape[0] + X;
+  
+  for (int i=0; i<=stop; i++){
+    nparray++;
+  }
+  return  *nparray;
+}
 
 	// Set specific bit in voxel table
 	void setBit(unsigned int* voxel_table, size_t index) {
@@ -36,7 +50,7 @@ namespace cpu_voxelizer {
 	}
 
 	// Mesh voxelization method
-  void cpu_voxelize_mesh(voxinfo info, trimesh::TriMesh* themesh, unsigned int* voxel_table, bool** tri_table, bool morton_order) {
+  void cpu_voxelize_mesh(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool** tri_table, bool morton_order) {
 		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
 		//// Common variables used in the voxelization process
 		//glm::vec3 delta_p(info.unit.x, info.unit.y, info.unit.z);
@@ -45,11 +59,13 @@ namespace cpu_voxelizer {
 
 		// PREPASS
 		// Move all vertices to origin (can be done in parallel)
-		trimesh::vec3 move_min = glm_to_trimesh<trimesh::vec3>(info.bbox.min);
+	        glm::vec3 move_min(info.bbox.min[0],info.bbox.min[1],info.bbox.min[2]);
 #pragma omp parallel for
-		for (int64_t i = 0; i < themesh->vertices.size(); i++) {
+	        for (int64_t i = 0; i < themesh->Vertices.rows(); i++) {
 			if (i == 0) { printf("[Info] Using %d threads \n", omp_get_num_threads()); }
-			themesh->vertices[i] = themesh->vertices[i] - move_min;
+			themesh->Vertices(i,0) = themesh->Vertices(i,0) - move_min[0];
+			themesh->Vertices(i,1) = themesh->Vertices(i,1) - move_min[1];
+			themesh->Vertices(i,2) = themesh->Vertices(i,2) - move_min[2];
 		}
 
 #ifdef _DEBUG
@@ -70,14 +86,21 @@ namespace cpu_voxelizer {
 #endif
 			// COMPUTE COMMON TRIANGLE PROPERTIES
 			// Move vertices to origin using bbox
-			glm::vec3 v0 = trimesh_to_glm<trimesh::point>(themesh->vertices[themesh->faces[i][0]]);
-			glm::vec3 v1 = trimesh_to_glm<trimesh::point>(themesh->vertices[themesh->faces[i][1]]);
-			glm::vec3 v2 = trimesh_to_glm<trimesh::point>(themesh->vertices[themesh->faces[i][2]]);
+			Eigen::Vector3f faces = themesh-> Surface(Eigen::all,i);
+ 
+			Eigen::Vector3f Ev0 = themesh->Vertices(Eigen::all,faces(0));
+			Eigen::Vector3f Ev1 = themesh->Vertices(Eigen::all,faces(1));
+			Eigen::Vector3f Ev2 = themesh->Vertices(Eigen::all,faces(2));
+		  
+			glm::vec3 v0 = eigen_to_glm(Ev0);
+			glm::vec3 v1 = eigen_to_glm(Ev1);
+			glm::vec3 v2 = eigen_to_glm(Ev2);
 
 			// Edge vectors
 			glm::vec3 e0 = v1 - v0;
 			glm::vec3 e1 = v2 - v1;
 			glm::vec3 e2 = v0 - v2;
+			
 			// Normal vector pointing up from the triangle
 			glm::vec3 n = glm::normalize(glm::cross(e0, e1));
 
@@ -253,23 +276,33 @@ namespace cpu_voxelizer {
 	}
 
 	// Mesh voxelization method
-	void cpu_voxelize_mesh_solid(voxinfo info, trimesh::TriMesh* themesh, unsigned int* voxel_table, bool morton_order) {
+	void cpu_voxelize_mesh_solid(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool morton_order) {
 		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
 
 		// PREPASS
 		// Move all vertices to origin (can be done in parallel)
-		trimesh::vec3 move_min = glm_to_trimesh<trimesh::vec3>(info.bbox.min);
+		glm::vec3 move_min = info.bbox.min;
 #pragma omp parallel for
-		for (int64_t i = 0; i < themesh->vertices.size(); i++) {
+		for (int64_t i = 0; i < themesh->Vertices.rows(); i++) {
 			if (i == 0) { printf("[Info] Using %d threads \n", omp_get_num_threads()); }
-			themesh->vertices[i] = themesh->vertices[i] - move_min;
+			themesh->Vertices(i,0) = themesh->Vertices(i,0) - move_min[0];
+			themesh->Vertices(i,1) = themesh->Vertices(i,1) - move_min[1];
+			themesh->Vertices(i,2) = themesh->Vertices(i,2) - move_min[2];
 		}
 
 #pragma omp parallel for
 		for (int64_t i = 0; i < info.n_triangles; i++) {
-			glm::vec3 v0 = trimesh_to_glm<trimesh::point>(themesh->vertices[themesh->faces[i][0]]);
-			glm::vec3 v1 = trimesh_to_glm<trimesh::point>(themesh->vertices[themesh->faces[i][1]]);
-			glm::vec3 v2 = trimesh_to_glm<trimesh::point>(themesh->vertices[themesh->faces[i][2]]);
+
+		  Eigen::Vector3f faces = themesh-> Surface(Eigen::seq(1,3),i);
+
+		  Eigen::Vector3f Ev0 = themesh->Vertices(Eigen::seq(1,3),faces(0));
+		  Eigen::Vector3f Ev1 = themesh->Vertices(Eigen::seq(1,3),faces(1));
+		  Eigen::Vector3f Ev2 = themesh->Vertices(Eigen::seq(1,3),faces(2));
+		  
+		  
+		  glm::vec3 v0 = eigen_to_glm(Ev0);
+		  glm::vec3 v1 = eigen_to_glm(Ev1);
+		  glm::vec3 v2 = eigen_to_glm(Ev2);
 
 			// Edge vectors
 			glm::vec3 e0 = v1 - v0;

@@ -43,9 +43,7 @@ MESSAGE(STATUS "Found Trimesh2 include: ${Trimesh2_TriMesh_h}")
 MESSAGE(STATUS "Found Trimesh2 lib: ${Trimesh2_LIBRARY}")
 
 SET(CUDA_VOXELIZER_SRCS
-  ./src/main.cpp
   ./src/util_cuda.cpp
-  ./src/util_io.cpp
   ./src/cpu_voxelizer.cpp
 )
 SET(CUDA_VOXELIZER_SRCS_CU

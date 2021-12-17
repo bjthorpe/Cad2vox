@@ -1,31 +1,50 @@
 #pragma once
 
 #include <stdint.h>
-
-#include "TriMesh.h"
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include <string>
 #include <fstream>
+#include <vector>
 
 #define GLM_FORCE_CUDA
 #define GLM_FORCE_PURE
 #include <glm/glm.hpp>
+// stuff for pybind11
+#include "Eigen/Core"
+using RowMatrixXf = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
+// Converting py::numpy array to GLM vectors
+// We do this as soon as possible, because GLM has builtin Vector math which is CUDA-compatible.
+// This function recives a pointer to the start of a numpy array and an index for the first dimension.
+// it then return's a GLM3 vector that contains all the elements in that row.
+// Note the array must be 2D with dimensions N by 3 
+glm::vec3 numpy_to_glm(double *ptr, int I) {
+    double* v0 = ptr + (I*3);
+    double* v1 = ptr + (I*3) + 1;
+    double* v2 = ptr + (I*3) + 2;
+	return glm::vec3(*v0, *v1, *v2);
+}
+// Converting builtin TriMesh vectors to GLM vectors
+// We do this as soon as possible, because GLM is great and its vector math is CUDA-compatible
+
+glm::vec3 eigen_to_glm(Eigen::Vector3f a) {
+	return glm::vec3(a(0), a(1), a(2));
+}
 
 // Converting builtin TriMesh vectors to GLM vectors
 // We do this as soon as possible, because GLM is great and the builtin Vector math of TriMesh is okay, but not CUDA-compatible
-template<typename trimeshtype>
-inline glm::vec3 trimesh_to_glm(trimeshtype a) {
-	return glm::vec3(a[0], a[1], a[2]);
-}
+//template <typename T>
+//inline glm::vec3 trimesh_to_glm(std::vector<T> a) {
+//	return glm::vec3(a[0], a[1], a[2]);
+//}
 
 // Converting GLM vectors to builtin TriMesh vectors
 // We do this as soon as possible, because GLM is great and the builtin Vector math of TriMesh is okay, but not CUDA-compatible
-template<typename trimeshtype>
-inline trimeshtype glm_to_trimesh(glm::vec3 a) {
-	return trimeshtype(a[0], a[1], a[2]);
-}
+//template <typename T>
+//inline std::vector<T> glm_to_trimesh(glm::vec3 a) {
+//	return std::vector<T>(a[0], a[1], a[2]);
+//}
 
 // Check if a voxel in the voxel table is set
 __device__ __host__ inline bool checkVoxel(size_t x, size_t y, size_t z, const glm::uvec3 gridsize, const unsigned int* vtable){

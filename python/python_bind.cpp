@@ -32,6 +32,7 @@ bool use_morton_code = false;
 // Helper function to transfer triangles to automatically managed CUDA memory ( > CUDA 7.x)
 float* meshToGPU_managed(const trimesh::TriMesh *mesh);
 
+
 void check_filename(string filename){
   if (filename.empty()){
     throw "[ERROR] filename is empty!";
@@ -57,6 +58,23 @@ void check_filename(string filename){
    // the last % lz should not be necessary
   // it is not used, by the way
 	  return ((unrolled / lx) / ly) % lz;
+	}
+
+//function to get value at indices of 2d np array. takes in 4 values  a pointer to the start of the array, the shape of the array,
+// and two indices X and Y. The pointer to the first element and shape of the array are obtained from 
+// info = array.request as info.ptr and info.shape see pybind11 docs for more details if needed. 
+double get_value_from_nparr(double* nparray,std::vector<py::ssize_t> shape, size_t X, size_t Y){
+  auto ptr = nparray + (Y*shape[0]) + X;
+  return  &ptr;
+}
+        
+//       py::buffer_info info = result.request();
+//	auto ptr = static_cast<double *>(info.ptr); //pointer to the start of the array
+
+	//N is the total numer of elemnts in the nparray r is a std::vector containing the number of elements in each dim
+//	int N = 1;
+//	for (auto r: info.shape) {
+//	  N *= r;
 	}
 
 py::array_t<double>run(string filename = "", bool useThrustPath = false, bool forceCPU = false, bool solid = false, unsigned int gridsize = 256){
@@ -184,6 +202,7 @@ py::array_t<double>run(string filename = "", bool useThrustPath = false, bool fo
 	t.stop(); fprintf(stdout, "[Perf] Total runtime: %.1f ms \n", t.elapsed_time_milliseconds);
 	return result;
 }
+
 
 
 PYBIND11_MODULE(CudaVox, m) {
