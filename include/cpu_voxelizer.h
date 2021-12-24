@@ -10,11 +10,6 @@
 // stuff for pybind11
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
-#include <pybind11/eigen.h>
-//using RowMatrixXf = Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>;
-typedef Eigen::Matrix<float,3, Eigen::Dynamic> MatrixX3f;
-// Use RowMatrixXf instead of MatrixXf to map numpy arrays to eigen
-// Eigen::Ref<RowMatrixXf>
 namespace py = pybind11;
 
 class Mesh {
@@ -22,11 +17,11 @@ public:
 	//
 	// Types
 	//
-    MatrixX3f Surface;
-    MatrixX3f Volume;
-    MatrixX3f Vertices;
+    py::array_t<float> Surface;
+    py::array_t<float> Volume;
+    py::array_t<float> Vertices;
 // Constructor
-    Mesh(Eigen::MatrixX3f triangle, Eigen::MatrixX3f tetra, Eigen::MatrixX3f Points){
+    Mesh(py::array_t<float> triangle, py::array_t<float> tetra, py::array_t<float> Points){
         Surface = triangle;
         Volume = tetra;
         Vertices = Points;

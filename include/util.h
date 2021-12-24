@@ -11,8 +11,8 @@
 #define GLM_FORCE_PURE
 #include <glm/glm.hpp>
 // stuff for pybind11
-#include "Eigen/Core"
-using RowMatrixXf = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
 // Converting py::numpy array to GLM vectors
 // We do this as soon as possible, because GLM has builtin Vector math which is CUDA-compatible.
@@ -28,9 +28,10 @@ glm::vec3 numpy_to_glm(double *ptr, int I) {
 // Converting builtin TriMesh vectors to GLM vectors
 // We do this as soon as possible, because GLM is great and its vector math is CUDA-compatible
 
-glm::vec3 eigen_to_glm(Eigen::Vector3f a) {
-	return glm::vec3(a(0), a(1), a(2));
-}
+//glm::vec3 eigen_to_glm(Eigen::Vector3f a) {
+//	return glm::vec3(a(0), a(1), a(2));
+//}
+
 
 // Converting builtin TriMesh vectors to GLM vectors
 // We do this as soon as possible, because GLM is great and the builtin Vector math of TriMesh is okay, but not CUDA-compatible

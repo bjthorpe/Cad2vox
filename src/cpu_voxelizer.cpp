@@ -1,22 +1,25 @@
 #include "cpu_voxelizer.h"
 #include <omp.h>
 #include <pybind11/eigen.h>
+// stuff for pybind11
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
 #define float_error 0.000001
 
 namespace cpu_voxelizer {
 
-  //function to get value at indices of 2d np array. takes in 4 values  a pointer to the start of the array, the shape of the array,
+  //function to get the pointer to value at indices of 2d np array. takes in 4 values  a pointer to the start of the array, the shape of the array,
 // and two indices X and Y. The pointer to the first element and shape of the array are obtained from 
 // info = array.request as info.ptr and info.shape see pybind11 docs for more details if needed. 
-double get_value_from_nparr(double* nparray,std::vector<py::ssize_t> shape, size_t X, size_t Y){
+float* get_value_from_nparr(float* nparray,std::vector<py::ssize_t> shape, size_t X, size_t Y){
 
   int stop = Y*shape[0] + X;
   
   for (int i=0; i<=stop; i++){
     nparray++;
   }
-  return  *nparray;
+  return nparray;
 }
 
 	// Set specific bit in voxel table
@@ -57,15 +60,33 @@ double get_value_from_nparr(double* nparray,std::vector<py::ssize_t> shape, size
 		//glm::vec3 c(0.0f, 0.0f, 0.0f); // critical point
 		//glm::vec3 grid_max(info.gridsize.x - 1, info.gridsize.y - 1, info.gridsize.z - 1); // grid max (grid runs from 0 to gridsize-1)
 
+		// get py::buffer_info for the mesh objects. These are structs that contain information about the Nparrays for later use. (Size,dimensions,shape etc.)
+		// see pybind11 docs on Numpy arrays for more info.
+		
+		py::buffer_info vert_info = themesh->Vertices.request(); //mesh points
+		py::buffer_info volume_info = themesh->Vertices.request(); //tetra
+		py::buffer_info surface_info = themesh->Vertices.request(); //triangles
+		
 		// PREPASS
 		// Move all vertices to origin (can be done in parallel)
 	        glm::vec3 move_min(info.bbox.min[0],info.bbox.min[1],info.bbox.min[2]);
 #pragma omp parallel for
-	        for (int64_t i = 0; i < themesh->Vertices.rows(); i++) {
+	        for (int64_t i = 0; i < vert_info.shape[0]; i++) {
 			if (i == 0) { printf("[Info] Using %d threads \n", omp_get_num_threads()); }
-			themesh->Vertices(i,0) = themesh->Vertices(i,0) - move_min[0];
-			themesh->Vertices(i,1) = themesh->Vertices(i,1) - move_min[1];
-			themesh->Vertices(i,2) = themesh->Vertices(i,2) - move_min[2];
+			//
+			// get pointers to the values in the array at the correct index
+			float* PointX = get_value_from_nparr(static_cast<float *>(vert_info.ptr),vert_info.shape,0,i);
+			float* PointY = get_value_from_nparr(static_cast<float *>(vert_info.ptr),vert_info.shape,1,i);
+			float* PointZ = get_value_from_nparr(static_cast<float *>(vert_info.ptr),vert_info.shape,2,i);
+
+			//next get the values themselves
+			float valueX = *PointX;
+			float valueY = *PointY;
+			float valueZ = *PointZ;
+			// update the values of the numpy array in-place.  
+			*PointX = valueX - move_min[0];
+		        *PointY = valueY - move_min[1];
+		        *PointZ = valueZ - move_min[2];
 		}
 
 #ifdef _DEBUG
