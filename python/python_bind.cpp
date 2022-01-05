@@ -7,8 +7,10 @@
 // GLM for maths
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-// Trimesh for model importing
-#include "TriMesh.h"
+// XTENSOR Python
+#include "xtensor/xmath.hpp"              // xtensor import for the C++ universal functions
+#define FORCE_IMPORT_ARRAY                // numpy C api loading
+#include "xtensor-python/pyarray.hpp"     // Numpy bindings
 // Util
 #include "util.h"
 #include "util_io.h"
@@ -18,7 +20,7 @@
 namespace py = pybind11;
 
 // Forward declaration of CUDA functions
-float* meshToGPU_thrust(const trimesh::TriMesh *mesh); // METHOD 3 to transfer triangles can be found in thrust_operations.cu(h)
+//float* meshToGPU_thrust(const trimesh::TriMesh *mesh); // METHOD 3 to transfer triangles can be found in thrust_operations.cu(h)
 void cleanup_thrust();
 void voxelize(const voxinfo & v, float* triangle_data, unsigned int* vtable, bool useThrustPath, bool morton_code);
 void voxelize_solid(const voxinfo& v, float* triangle_data, unsigned int* vtable, bool useThrustPath, bool morton_code);
@@ -30,7 +32,7 @@ void voxelize_solid(const voxinfo& v, float* triangle_data, unsigned int* vtable
 bool use_morton_code = false;
 
 // Helper function to transfer triangles to automatically managed CUDA memory ( > CUDA 7.x)
-float* meshToGPU_managed(const trimesh::TriMesh *mesh);
+//float* meshToGPU_managed(const trimesh::TriMesh *mesh);
 
 
 void check_filename(string filename){
@@ -77,7 +79,9 @@ double get_value_from_nparr(double* nparray,std::vector<py::ssize_t> shape, size
 //	  N *= r;
 	}
 
-py::array_t<double>run(string filename = "", bool useThrustPath = false, bool forceCPU = false, bool solid = false, unsigned int gridsize = 256){
+xt::pyarray<float>run(xt::pyarray<float> Triangles, xt::pyarray<float> Tetra,  xt::pyarray<float> Points,
+		      xt::pyarray<float> Bbox_max, xt::pyarray<float> Bbox_min,
+		      bool useThrustPath = false, bool forceCPU = false, bool solid = false, unsigned int gridsize = 256){
 
   try{
     check_filename(filename);
@@ -89,28 +93,15 @@ py::array_t<double>run(string filename = "", bool useThrustPath = false, bool fo
   	Timer t; t.start();
 	fprintf(stdout, "\n## PROGRAM PARAMETERS \n");
 	fflush(stdout);
-	trimesh::TriMesh::set_verbose(false);
 
-	// SECTION: Read the mesh from disk using the TriMesh library
 	fprintf(stdout, "\n## READ MESH \n");
-#ifdef _DEBUG
-	trimesh::TriMesh::set_verbose(true);
-#endif
-	fprintf(stdout, "[I/O] Reading mesh from %s \n", filename.c_str());
-	trimesh::TriMesh *mesh = new trimesh::TriMesh();
-   
-	trimesh::TriMesh* themesh = trimesh::TriMesh::read(filename.c_str());
 	
-	themesh->need_faces(); // Trimesh: Unpack (possible) triangle strips so we have faces for sure
-	fprintf(stdout, "[Mesh] Number of triangles: %zu \n", themesh->faces.size());
-	fprintf(stdout, "[Mesh] Number of vertices: %zu \n", themesh->vertices.size());
-	fprintf(stdout, "[Mesh] Computing bbox \n");
-	themesh->need_bbox(); // Trimesh: Compute the bounding box (in model coordinates)
+        Mesh *themesh = new Mesh(Triangles,Tetra,Points);
 
 	// SECTION: Compute some information needed for voxelization (bounding box, unit vector, ...)
 	fprintf(stdout, "\n## VOXELISATION SETUP \n");
 	// Initialize our own AABox
-	AABox<glm::vec3> bbox_mesh(trimesh_to_glm(themesh->bbox.min), trimesh_to_glm(themesh->bbox.max));
+	AABox<glm::vec3> bbox_mesh(Xt_to_glm(Bbox_min), Xt_to_glm(Bbox_max));
 	// Transform that AABox to a cubical box (by padding directions if needed)
 	// Create voxinfo struct, which handles all the rest
 	voxinfo voxelization_info(createMeshBBCube<glm::vec3>(bbox_mesh), glm::uvec3(gridsize, gridsize, gridsize), themesh->faces.size());
@@ -206,10 +197,12 @@ py::array_t<double>run(string filename = "", bool useThrustPath = false, bool fo
 
 
 PYBIND11_MODULE(CudaVox, m) {
+  xt::import_numpy();
     // Optional docstring
     m.doc() = "python  link into cudavox";
     m.def("run",&run,"function to perform the voxelization",
-	  py::arg("filename") ="", py::arg("useThrustPath") = false,
-	  py::arg("forceCPU") = false, py::arg("solid") = false,
-	  py::arg("gridsize") = 256);
+	  "Triangles"_a = xt::xarray<float>(), "Tetra"_a = xt::xarray<float>(),
+	  "Points"_a = xt::xarray<float>(), "Bbox_min"_a = xt::xarray<float>(),
+	  "Bbox_max"_a = xt::xarray<float>(), "useThrustPath"_a = false, "forceCPU"_a = false,
+	  "solid"_a = false,"gridsize"_a = 256);
 }

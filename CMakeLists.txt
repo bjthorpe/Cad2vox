@@ -7,40 +7,10 @@ FIND_PACKAGE(glm CONFIG REQUIRED)
 FIND_PACKAGE(OpenMP REQUIRED)
 FIND_PACKAGE(CUDAToolkit REQUIRED)
 add_compile_options(-fPIC)
+
+set(XTL_INCLUDE_DIRS ${CONDA_PREFIX}/include lib/xtensor-python/include)
+
 SET(CUDA_VOXELIZER_EXECUTABLE cuda_voxelizer)
-
-SET(Trimesh2_INCLUDE_DIR CACHE PATH "Path to Trimesh2 includes")
-
-IF(NOT Trimesh2_INCLUDE_DIR)
-  MESSAGE(FATAL_ERROR "You need to set variable Trimesh2_INCLUDE_DIR")
-ENDIF()
-
-FIND_FILE(Trimesh2_TriMesh_h TriMesh.h ${Trimesh2_INCLUDE_DIR})
-
-IF(NOT Trimesh2_TriMesh_h)
-	message(FATAL_ERROR "Can't find TriMesh.h in ${Trimesh2_INCLUDE_DIR}")
-ENDIF()
-MARK_AS_ADVANCED(Trimesh2_TriMesh_h)
-
-SET(Trimesh2_LINK_DIR CACHE PATH "Path to Trimesh2 library dir.")
-
-IF(NOT Trimesh2_LINK_DIR)
-  MESSAGE(FATAL_ERROR "You need to set variable Trimesh2_LINK_DIR")
-ENDIF()
-
-IF(NOT EXISTS "${Trimesh2_LINK_DIR}")
-  MESSAGE(FATAL_ERROR "Trimesh2 library dir does not exist")
-ENDIF()
-
-FIND_LIBRARY(Trimesh2_LIBRARY trimesh ${Trimesh2_LINK_DIR})
-
-IF(NOT Trimesh2_LIBRARY)
-	message(SEND_ERROR "Can't find libtrimesh.a in ${Trimesh2_LINK_DIR}")
-ENDIF()
-MARK_AS_ADVANCED(Trimesh2_LIBRARY)
-
-MESSAGE(STATUS "Found Trimesh2 include: ${Trimesh2_TriMesh_h}")
-MESSAGE(STATUS "Found Trimesh2 lib: ${Trimesh2_LIBRARY}")
 
 SET(CUDA_VOXELIZER_SRCS
   ./src/util_cuda.cpp
@@ -54,8 +24,6 @@ SET(CUDA_VOXELIZER_SRCS_CU
 
 include_directories("include")
 
-
-
 file (GLOB SOURCE_FILES "src/*.cpp")
 file (GLOB HEADER_FILES "src/*.hpp")
 file (GLOB PYTHON_FILES "python/python_bind.cpp" "python/*.hpp")
@@ -67,9 +35,7 @@ pybind11_add_module(CudaVox
 	${PYTHON_FILES}
 )
 
-TARGET_INCLUDE_DIRECTORIES(CudaVox PRIVATE ${Trimesh2_INCLUDE_DIR})
-
-TARGET_LINK_LIBRARIES(CudaVox PRIVATE ${Trimesh2_LIBRARY} PRIVATE OpenMP::OpenMP_CXX PRIVATE CUDA::cudart PRIVATE glm::glm)
+TARGET_LINK_LIBRARIES(CudaVox PRIVATE OpenMP::OpenMP_CXX PRIVATE CUDA::cudart PRIVATE glm::glm)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 #for tersting
 set(PYTHON_LIBRARY_DIR "/home/ben/anaconda3/envs/CudaVox/lib")
