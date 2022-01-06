@@ -8,7 +8,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 // XTENSOR Python
-#include "xtensor/xmath.hpp"              // xtensor import for the C++ universal functions
 #define FORCE_IMPORT_ARRAY                // numpy C api loading
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 // Util
@@ -17,7 +16,7 @@
 #include "util_cuda.h"
 #include "timer.h"
 #include "cpu_voxelizer.h"
-namespace py = pybind11;
+//namespace py = pybind11;
 
 // Forward declaration of CUDA functions
 //float* meshToGPU_thrust(const trimesh::TriMesh *mesh); // METHOD 3 to transfer triangles can be found in thrust_operations.cu(h)
@@ -43,7 +42,7 @@ void check_filename(string filename){
 	//note: lx,ly and lz are the max length in each dim in this case = gridsize
 	// unrool is the 
 	int unroll(int x, int y, int z, int lx, int ly, int lz){
-	  return x + y*lx + z*lx*ly;
+_t	  return x + y*lx + z*lx*ly;
 	}
 
 	int getx(int unrolled, int lx, int ly, int lz){
@@ -201,8 +200,8 @@ PYBIND11_MODULE(CudaVox, m) {
     // Optional docstring
     m.doc() = "python  link into cudavox";
     m.def("run",&run,"function to perform the voxelization",
-	  "Triangles"_a = xt::xarray<float>(), "Tetra"_a = xt::xarray<float>(),
-	  "Points"_a = xt::xarray<float>(), "Bbox_min"_a = xt::xarray<float>(),
-	  "Bbox_max"_a = xt::xarray<float>(), "useThrustPath"_a = false, "forceCPU"_a = false,
+	  "Triangles"_a = xt::pyarray<float>(), "Tetra"_a = xt::pyarray<float>(),
+	  "Points"_a = xt::pyarray<float>(), "Bbox_min"_a = xt::pyarray<float>(),
+	  "Bbox_max"_a = xt::pyarray<float>(), "useThrustPath"_a = false, "forceCPU"_a = false,
 	  "solid"_a = false,"gridsize"_a = 256);
 }

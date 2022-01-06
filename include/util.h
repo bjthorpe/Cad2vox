@@ -10,9 +10,12 @@
 #define GLM_FORCE_CUDA
 #define GLM_FORCE_PURE
 #include <glm/glm.hpp>
+// XTENSOR Python
+#define FORCE_IMPORT_ARRAY                // numpy C api loading
+#include "xtensor-python/pyarray.hpp"     // Numpy bindings
 // stuff for pybind11
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
+//#include <pybind11/pybind11.h>
+//#include <pybind11/numpy.h>
 
 // Converting py::numpy array to GLM vectors
 // We do this as soon as possible, because GLM has builtin Vector math which is CUDA-compatible.
@@ -25,27 +28,19 @@ glm::vec3 numpy_to_glm(double *ptr, int I) {
     double* v2 = ptr + (I*3) + 2;
 	return glm::vec3(*v0, *v1, *v2);
 }
-// Converting builtin TriMesh vectors to GLM vectors
-// We do this as soon as possible, because GLM is great and its vector math is CUDA-compatible
-
-//glm::vec3 eigen_to_glm(Eigen::Vector3f a) {
-//	return glm::vec3(a(0), a(1), a(2));
-//}
 
 
-// Converting builtin TriMesh vectors to GLM vectors
-// We do this as soon as possible, because GLM is great and the builtin Vector math of TriMesh is okay, but not CUDA-compatible
-//template <typename T>
-//inline glm::vec3 trimesh_to_glm(std::vector<T> a) {
-//	return glm::vec3(a[0], a[1], a[2]);
-//}
-
-// Converting GLM vectors to builtin TriMesh vectors
-// We do this as soon as possible, because GLM is great and the builtin Vector math of TriMesh is okay, but not CUDA-compatible
-//template <typename T>
-//inline std::vector<T> glm_to_trimesh(glm::vec3 a) {
-//	return std::vector<T>(a[0], a[1], a[2]);
-//}
+// Converting between Xtensor arrays and GLM vectors
+// We do this as soon as possible, because GLM is great and the builtin Vector math of lib Xtensor is okay, but not CUDA-compatible
+template <typename T>
+inline glm::vec3 Xt_to_glm(xt::pyarray<T> a) {
+	return glm::vec3(a(0), a(1), a(2));
+}
+// And the Reverse
+template <typename T>
+inline xt::pyarray<T> glm_to_Xt(glm::vec3 a) {
+	return xt::pyarray<T>{a[0], a[1], a[2]};
+}
 
 // Check if a voxel in the voxel table is set
 __device__ __host__ inline bool checkVoxel(size_t x, size_t y, size_t z, const glm::uvec3 gridsize, const unsigned int* vtable){

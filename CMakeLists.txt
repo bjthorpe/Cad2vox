@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.20 FATAL_ERROR)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.10 FATAL_ERROR)
 
 PROJECT(CudaVoxelize LANGUAGES CXX CUDA)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpic")
@@ -7,7 +7,6 @@ FIND_PACKAGE(glm CONFIG REQUIRED)
 FIND_PACKAGE(OpenMP REQUIRED)
 FIND_PACKAGE(CUDAToolkit REQUIRED)
 add_compile_options(-fPIC)
-
 set(XTL_INCLUDE_DIRS ${CONDA_PREFIX}/include lib/xtensor-python/include)
 
 SET(CUDA_VOXELIZER_EXECUTABLE cuda_voxelizer)
@@ -22,7 +21,7 @@ SET(CUDA_VOXELIZER_SRCS_CU
   ./src/voxelize_solid.cu
 )
 
-include_directories("include")
+#include_directories("include")
 
 file (GLOB SOURCE_FILES "src/*.cpp")
 file (GLOB HEADER_FILES "src/*.hpp")
@@ -35,9 +34,10 @@ pybind11_add_module(CudaVox
 	${PYTHON_FILES}
 )
 
-TARGET_LINK_LIBRARIES(CudaVox PRIVATE OpenMP::OpenMP_CXX PRIVATE CUDA::cudart PRIVATE glm::glm)
+TARGET_LINK_LIBRARIES(CudaVox PRIVATE OpenMP::OpenMP_CXX PRIVATE CUDA::cudart PRIVATE glm::glm PRIVATE xtensor)
+target_include_directories(CudaVox PUBLIC ${XTL_INCLUDE_DIRS} PUBLIC "include")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-#for tersting
+#for testing
 set(PYTHON_LIBRARY_DIR "/home/ben/anaconda3/envs/CudaVox/lib")
 set(PYTHON_EXECUTABLE "/home/ben/anaconda3/envs/CudaVox/bin/python3")
 
