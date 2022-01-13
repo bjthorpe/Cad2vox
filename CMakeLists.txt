@@ -6,9 +6,11 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 FIND_PACKAGE(glm CONFIG REQUIRED)
 FIND_PACKAGE(OpenMP REQUIRED)
 FIND_PACKAGE(CUDAToolkit REQUIRED)
-add_compile_options(-fPIC)
-set(XTL_INCLUDE_DIRS ${CONDA_PREFIX}/include lib/xtensor-python/include)
+FIND_PACKAGE(xtensor REQUIRED)
 
+add_compile_options(-g)
+#set(XTL_INCLUDE_DIRS ${CONDA_PREFIX}/include lib/xtensor-python/include)
+set(XTL_INCLUDE_DIRS lib/xtensor-python/include)
 SET(CUDA_VOXELIZER_EXECUTABLE cuda_voxelizer)
 
 SET(CUDA_VOXELIZER_SRCS

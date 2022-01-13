@@ -10,25 +10,7 @@
 #define GLM_FORCE_CUDA
 #define GLM_FORCE_PURE
 #include <glm/glm.hpp>
-// XTENSOR Python
-#define FORCE_IMPORT_ARRAY                // numpy C api loading
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
-// stuff for pybind11
-//#include <pybind11/pybind11.h>
-//#include <pybind11/numpy.h>
-
-// Converting py::numpy array to GLM vectors
-// We do this as soon as possible, because GLM has builtin Vector math which is CUDA-compatible.
-// This function recives a pointer to the start of a numpy array and an index for the first dimension.
-// it then return's a GLM3 vector that contains all the elements in that row.
-// Note the array must be 2D with dimensions N by 3 
-glm::vec3 numpy_to_glm(double *ptr, int I) {
-    double* v0 = ptr + (I*3);
-    double* v1 = ptr + (I*3) + 1;
-    double* v2 = ptr + (I*3) + 2;
-	return glm::vec3(*v0, *v1, *v2);
-}
-
 
 // Converting between Xtensor arrays and GLM vectors
 // We do this as soon as possible, because GLM is great and the builtin Vector math of lib Xtensor is okay, but not CUDA-compatible

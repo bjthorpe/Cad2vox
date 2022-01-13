@@ -1,48 +1,73 @@
 #include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
+// XTENSOR Python
+#define FORCE_IMPORT_ARRAY                // numpy C api loading
+#include "xtensor-python/pyarray.hpp"     // Numpy bindings
 // Standard libs
 #include <string>
 #include <cstdio>
 // GLM for maths
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-// XTENSOR Python
-#define FORCE_IMPORT_ARRAY                // numpy C api loading
-#include "xtensor-python/pyarray.hpp"     // Numpy bindings
 // Util
 #include "util.h"
 #include "util_io.h"
 #include "util_cuda.h"
 #include "timer.h"
 #include "cpu_voxelizer.h"
-//namespace py = pybind11;
+namespace py = pybind11;
+using namespace pybind11::literals;
 
 // Forward declaration of CUDA functions
-//float* meshToGPU_thrust(const trimesh::TriMesh *mesh); // METHOD 3 to transfer triangles can be found in thrust_operations.cu(h)
+float* meshToGPU_thrust(const Mesh *mesh); // METHOD 3 to transfer triangles can be found in thrust_operations.cu(h)
 void cleanup_thrust();
 void voxelize(const voxinfo & v, float* triangle_data, unsigned int* vtable, bool useThrustPath, bool morton_code);
 void voxelize_solid(const voxinfo& v, float* triangle_data, unsigned int* vtable, bool useThrustPath, bool morton_code);
 
-//void run(string filename, bool useThrustPath =false, bool forceCPU = false, bool solid = false, unsigned int gridsize = 256);
 // Encode 3d data using morton code, this is a mathematically efficient way of storing 3D data in binary.
 // It is used for binary output in the c++ code but is not used for python.
 // Thus is this is not used and is purely here for compatibility.
 bool use_morton_code = false;
 
 // Helper function to transfer triangles to automatically managed CUDA memory ( > CUDA 7.x)
-//float* meshToGPU_managed(const trimesh::TriMesh *mesh);
+float* meshToGPU_managed(const Mesh *mesh){
+  Timer t; t.start();
+  size_t n_floats = sizeof(float) * 9 * (mesh->Surface.shape(0));
+  float* device_triangles;
+  int triangle_verts[3];
+  fprintf(stdout, "[Mesh] Allocating %s of CUDA-managed UNIFIED memory for triangle data \n", (readableSize(n_floats)).c_str());
+  checkCudaErrors(cudaMallocManaged((void**) &device_triangles, n_floats)); // managed memory
+  fprintf(stdout, "[Mesh] Copy %lu triangles to CUDA-managed UNIFIED memory \n", (size_t)(mesh->Surface.shape(0)));
+  for (size_t i = 0; i < mesh->Surface.shape(0); i++) {
 
+	   // Extract the vertices that make up triangle i
+    for (int K = 0; K < 3; K++){
+	    triangle_verts[K] = mesh->Surface(i,K);
+	  }
+	  // get the xyz co-ordinates of each of those vertices as a glm vector
+	  glm::vec3 v0 = glm::vec3(0,0,0);
+	  glm::vec3 v1 = glm::vec3(0,0,0);
+	  glm::vec3 v2 = glm::vec3(0,0,0);
+	  
+	  for (int N = 0; N < 3; N++){
+	    v0[N] = mesh->Vertices(triangle_verts[0],N);
+	    v1[N] = mesh->Vertices(triangle_verts[1],N);
+	    v2[N] = mesh->Vertices(triangle_verts[2],N);
+	  }
+	  
+	  size_t j = i * 9;
+	  memcpy((device_triangles)+j, glm::value_ptr(v0), sizeof(glm::vec3));
+	  memcpy((device_triangles)+j+3, glm::value_ptr(v1), sizeof(glm::vec3));
+	  memcpy((device_triangles)+j+6, glm::value_ptr(v2), sizeof(glm::vec3));
+	}
+	t.stop();fprintf(stdout, "[Perf] Mesh transfer time to GPU: %.1f ms \n", t.elapsed_time_milliseconds);
 
-void check_filename(string filename){
-  if (filename.empty()){
-    throw "[ERROR] filename is empty!";
-	    }
+	return device_triangles;
 }
+
 	//note: lx,ly and lz are the max length in each dim in this case = gridsize
 	// unrool is the 
 	int unroll(int x, int y, int z, int lx, int ly, int lz){
-_t	  return x + y*lx + z*lx*ly;
+	  return x + y*lx + z*lx*ly;
 	}
 
 	int getx(int unrolled, int lx, int ly, int lz){
@@ -61,49 +86,29 @@ _t	  return x + y*lx + z*lx*ly;
 	  return ((unrolled / lx) / ly) % lz;
 	}
 
-//function to get value at indices of 2d np array. takes in 4 values  a pointer to the start of the array, the shape of the array,
-// and two indices X and Y. The pointer to the first element and shape of the array are obtained from 
-// info = array.request as info.ptr and info.shape see pybind11 docs for more details if needed. 
-double get_value_from_nparr(double* nparray,std::vector<py::ssize_t> shape, size_t X, size_t Y){
-  auto ptr = nparray + (Y*shape[0]) + X;
-  return  &ptr;
-}
-        
-//       py::buffer_info info = result.request();
-//	auto ptr = static_cast<double *>(info.ptr); //pointer to the start of the array
 
-	//N is the total numer of elemnts in the nparray r is a std::vector containing the number of elements in each dim
-//	int N = 1;
-//	for (auto r: info.shape) {
-//	  N *= r;
-	}
+xt::pyarray<float>run(xt::pyarray<long> Triangles, xt::pyarray<long> Tetra, xt::pyarray<long> Tags, xt::pyarray<float> Points,
+		      xt::pyarray<float> Bbox_min, xt::pyarray<float> Bbox_max, bool useThrustPath = false,
+		      bool forceCPU = false, bool solid = true, unsigned int gridsize = 256, bool use_tetra=false){
 
-xt::pyarray<float>run(xt::pyarray<float> Triangles, xt::pyarray<float> Tetra,  xt::pyarray<float> Points,
-		      xt::pyarray<float> Bbox_max, xt::pyarray<float> Bbox_min,
-		      bool useThrustPath = false, bool forceCPU = false, bool solid = false, unsigned int gridsize = 256){
-
-  try{
-    check_filename(filename);
-      }
-  catch (const char* msg) {
-     cerr << msg << endl;
-     exit(0);
-   }
   	Timer t; t.start();
 	fprintf(stdout, "\n## PROGRAM PARAMETERS \n");
 	fflush(stdout);
-
+	xt::pyarray<long> result;
 	fprintf(stdout, "\n## READ MESH \n");
 	
-        Mesh *themesh = new Mesh(Triangles,Tetra,Points);
+        Mesh *themesh = new Mesh(Triangles,Tetra,Tags,Points);
 
 	// SECTION: Compute some information needed for voxelization (bounding box, unit vector, ...)
 	fprintf(stdout, "\n## VOXELISATION SETUP \n");
 	// Initialize our own AABox
-	AABox<glm::vec3> bbox_mesh(Xt_to_glm(Bbox_min), Xt_to_glm(Bbox_max));
+
+	glm::vec3 bbmin = Xt_to_glm(Bbox_min);
+	glm::vec3 bbmax = Xt_to_glm(Bbox_max);
+	AABox<glm::vec3> bbox_mesh(bbmin,bbmax);
 	// Transform that AABox to a cubical box (by padding directions if needed)
 	// Create voxinfo struct, which handles all the rest
-	voxinfo voxelization_info(createMeshBBCube<glm::vec3>(bbox_mesh), glm::uvec3(gridsize, gridsize, gridsize), themesh->faces.size());
+	voxinfo voxelization_info(createMeshBBCube<glm::vec3>(bbox_mesh), glm::uvec3(gridsize, gridsize, gridsize), themesh->Surface.shape(0));
 	voxelization_info.print();
 	// Compute space needed to hold voxel table (1 voxel / bit)
 	size_t vtable_size = static_cast<size_t>(ceil(static_cast<size_t>(voxelization_info.gridsize.x) * static_cast<size_t>(voxelization_info.gridsize.y) * static_cast<size_t>(voxelization_info.gridsize.z)) / 8.0f);
@@ -166,28 +171,18 @@ xt::pyarray<float>run(xt::pyarray<float> Triangles, xt::pyarray<float> Tetra,  x
 		}
 	}
 
+	// Generate output without greyscale
+	  result= xt::zeros<long>({gridsize,gridsize,gridsize});
 
-	py::array_t<double> result = py::array_t<double>({gridsize,gridsize,gridsize});
-        py::buffer_info info = result.request();
-	auto ptr = static_cast<double *>(info.ptr); //pointer to the start of the array
-
-	//N is the total numer of elemnts in the nparray r is a std::vector containing the number of elements in each dim
-	int N = 1;
-	for (auto r: info.shape) {
-	  N *= r;
-	}
-	
-	for (int n = 0; n < N; n++) {
-	  int x = getx(n,gridsize,gridsize,gridsize);
-	  int y = gety(n,gridsize,gridsize,gridsize);
-	  int z = getz(n,gridsize,gridsize,gridsize);
-	  
-	  // the checkVoxel function returns either true or false which we can use as 0 or 1 in the
-	  // array to save using if statements inside the loop.
-	  *ptr = checkVoxel(x, y, z, voxelization_info.gridsize, vtable);
-	  ptr++;
+	  for (int x = 0; x < gridsize; x++) {
+	    for (int y = 0; y < gridsize; y++) {
+	      for (int z = 0; z < gridsize; z++) {
+		if(checkVoxel(x, y, z, voxelization_info.gridsize, vtable)){
+		  result(x,y,z) = 256; // set voxel to max brightness (8bit rgb)
+		}
+	      }
 	    }
-        
+	  }
 	fprintf(stdout, "\n## STATS \n");
 	t.stop(); fprintf(stdout, "[Perf] Total runtime: %.1f ms \n", t.elapsed_time_milliseconds);
 	return result;
@@ -196,12 +191,13 @@ xt::pyarray<float>run(xt::pyarray<float> Triangles, xt::pyarray<float> Tetra,  x
 
 
 PYBIND11_MODULE(CudaVox, m) {
+  
   xt::import_numpy();
     // Optional docstring
     m.doc() = "python  link into cudavox";
     m.def("run",&run,"function to perform the voxelization",
-	  "Triangles"_a = xt::pyarray<float>(), "Tetra"_a = xt::pyarray<float>(),
-	  "Points"_a = xt::pyarray<float>(), "Bbox_min"_a = xt::pyarray<float>(),
-	  "Bbox_max"_a = xt::pyarray<float>(), "useThrustPath"_a = false, "forceCPU"_a = false,
-	  "solid"_a = false,"gridsize"_a = 256);
+	  "Triangles"_a, "Tetra"_a, "Tags"_a,
+	  "Points"_a, "Bbox_min"_a,
+	  "Bbox_max"_a, "useThrustPath"_a = false, "forceCPU"_a = false,
+	  "solid"_a = true,"gridsize"_a = 256, "use_tetra"_a =false);
 }

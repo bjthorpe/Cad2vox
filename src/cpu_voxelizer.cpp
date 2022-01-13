@@ -1,29 +1,15 @@
 #include "cpu_voxelizer.h"
 #include <omp.h>
-#include <pybind11/eigen.h>
-// stuff for pybind11
-//#include <pybind11/pybind11.h>
-//#include <pybind11/numpy.h>
-// XTENSOR Python
-#define FORCE_IMPORT_ARRAY                // numpy C api loading
-#include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include <xtensor/xarray.hpp>
+#include <xtensor/xfixed.hpp>
+#include <xtensor/xio.hpp>
+#include <xtensor/xadapt.hpp>
+#include <xtensor/xview.hpp>
 
 #define float_error 0.000001
 
 namespace cpu_voxelizer {
 
-  //function to get the pointer to value at indices of 2d np array. takes in 4 values  a pointer to the start of the array, the shape of the array,
-// and two indices X and Y. The pointer to the first element and shape of the array are obtained from 
-// info = array.request as info.ptr and info.shape see pybind11 docs for more details if needed. 
-//float* get_value_from_nparr(float* nparray,std::vector<py::ssize_t> shape, size_t X, size_t Y){
-//
-  // int stop = Y*shape[0] + X;
-  
-  // for (int i=0; i<=stop; i++){
-  // nparray++;
-  // }
-  //return nparray;
-  //}
 
 	// Set specific bit in voxel table
 	void setBit(unsigned int* voxel_table, size_t index) {
@@ -35,8 +21,6 @@ namespace cpu_voxelizer {
 			voxel_table[int_location] = (voxel_table[int_location] | mask);
 		}
 	}
-
-
 
 	// Encode morton code using LUT table
 	uint64_t mortonEncode_LUT(unsigned int x, unsigned int y, unsigned int z) {
@@ -59,14 +43,6 @@ namespace cpu_voxelizer {
   void cpu_voxelize_mesh(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool** tri_table, bool morton_order) {
 		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
 
-		// get py::buffer_info for the mesh objects. These are structs that contain information about the Nparrays for later use. (Size,dimensions,shape etc.)
-		// see pybind11 docs on Numpy arrays for more info.
-		
-		//	py::buffer_info vert_info = themesh->Vertices.request(); //mesh points
-		//py::buffer_info volume_info = themesh->Vertices.request(); //tetra
-		//py::buffer_info surface_info = themesh->Vertices.request(); //triangles
-		
-		
 		// PREPASS
 		// Move all vertices to origin (can be done in parallel)
 		xt::pyarray<float> move_min = glm_to_Xt<float>(info.bbox.min);
@@ -95,12 +71,21 @@ namespace cpu_voxelizer {
 #ifdef _DEBUG
 			debug_n_triangles++;
 #endif
-			// COMPUTE COMMON TRIANGLE PROPERTIES
-			// Move vertices to origin using bbox
-		  
-			glm::vec3 v0 = Xt_to_glm<float>(themesh->Vertices(themesh->Surface(i,0)));
-			glm::vec3 v1 = Xt_to_glm<float>(themesh->Vertices(themesh->Surface(i,1)));
-			glm::vec3 v2 = Xt_to_glm<float>(themesh->Vertices(themesh->Surface(i,2)));
+			// Extract the vertices that make up triangle i
+			int triangle_verts[3];
+			for (int K = 0; K < 3; K++){
+			  triangle_verts[K] = themesh->Surface(i,K);
+			}
+			// get the xyz co-ordinates of each of those vertices as a glm vector
+			glm::vec3 v0 = glm::vec3(0,0,0);
+			glm::vec3 v1 = glm::vec3(0,0,0);
+			glm::vec3 v2 = glm::vec3(0,0,0);
+
+			  for (int N = 0; N < 3; N++){
+			    v0[N] = themesh->Vertices(triangle_verts[0],N);
+			    v1[N] = themesh->Vertices(triangle_verts[1],N);
+			    v2[N] = themesh->Vertices(triangle_verts[2],N);
+			  }
 
 			// Edge vectors
 			glm::vec3 e0 = v1 - v0;
@@ -205,11 +190,7 @@ namespace cpu_voxelizer {
 						}
 						else {
 							size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y)* static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z)* static_cast<size_t>(info.gridsize.y)* static_cast<size_t>(info.gridsize.z));
-							//std:: cout << "Voxel found at " << x << " " << y << " " << z << std::endl;
 							setBit(voxel_table, location);
-							int int_location = location / size_t(32);
-							tri_table[i][int_location] = true;
-							
 							
 						}
 						continue;
@@ -298,10 +279,21 @@ namespace cpu_voxelizer {
 
 #pragma omp parallel for
 		for (int64_t i = 0; i < info.n_triangles; i++) {
+		  
+		  int triangle_verts[3]; // Extract the vertices that make up triangle i
+			for (int K = 0; K < 3; K++){
+			  triangle_verts[K] = themesh->Surface(i,K);
+			}
+			// get the xyz co-ordinates of each of those vertices as a glm vector
+			glm::vec3 v0 = glm::vec3(0,0,0);
+			glm::vec3 v1 = glm::vec3(0,0,0);
+			glm::vec3 v2 = glm::vec3(0,0,0);
 
-		 	glm::vec3 v0 = Xt_to_glm<float>(themesh->Vertices(themesh->Surface(i,0)));
-			glm::vec3 v1 = Xt_to_glm<float>(themesh->Vertices(themesh->Surface(i,1)));
-			glm::vec3 v2 = Xt_to_glm<float>(themesh->Vertices(themesh->Surface(i,2)));
+			  for (int N = 0; N < 3; N++){
+			    v0[N] = themesh->Vertices(triangle_verts[0],N);
+			    v1[N] = themesh->Vertices(triangle_verts[1],N);
+			    v2[N] = themesh->Vertices(triangle_verts[2],N);
+			  }
 
 			// Edge vectors
 			glm::vec3 e0 = v1 - v0;

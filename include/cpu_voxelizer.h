@@ -7,27 +7,23 @@
 #include "util.h"
 #include "timer.h"
 #include "morton_LUTs.h"
-// stuff for pybind11
-//#include <pybind11/pybind11.h>
-//#include <pybind11/numpy.h>
-// XTENSOR Python
-#define FORCE_IMPORT_ARRAY                // numpy C api loading
-#include "xtensor-python/pyarray.hpp"     // Numpy bindings
-//namespace py = pybind11;
 
 class Mesh {
 public:
 	//
 	// Types
 	//
-    xt::pyarray<float> Surface;
-    xt::pyarray<float> Volume;
+    xt::pyarray<long> Surface;
+    xt::pyarray<long> Volume;
+    xt::pyarray<long> Tags;
     xt::pyarray<float> Vertices;
 // Constructor
-    Mesh(xt::pyarray<float> triangle, xt::pyarray<float> tetra, xt::pyarray<float> Points){
+    Mesh(xt::pyarray<long> triangle, xt::pyarray<long> tetra, xt::pyarray<long> tags, xt::pyarray<float> Points){
         Surface = triangle;
         Volume = tetra;
+        Tags = tags;
         Vertices = Points;
+
 }
 };
 
