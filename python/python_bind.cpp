@@ -162,16 +162,20 @@ xt::pyarray<float>run(xt::pyarray<long> Triangles, xt::pyarray<long> Tetra, xt::
 
 		  tri_table[i] = (bool *) calloc(vtable_size, sizeof(bool));
 		}
-		
-		if (!solid) {
+		if(use_tetra){
+		  result = cpu_voxelizer::cpu_voxelize_mesh_tetra(voxelization_info, themesh);
+		}
+		else if (!solid) {
 		  cpu_voxelizer::cpu_voxelize_mesh(voxelization_info, themesh, vtable, tri_table, use_morton_code);
 		}
 		else {
-		        cpu_voxelizer::cpu_voxelize_mesh_solid(voxelization_info, themesh, vtable, use_morton_code);
+		  cpu_voxelizer::cpu_voxelize_mesh_solid(voxelization_info, themesh, vtable, use_morton_code);
 		}
 	}
 
-	// Generate output without greyscale
+	// Generate output without greyscale if using triangle data.
+	if(!use_tetra){
+	  fprintf(stdout, "[INFO] Voxelization is using Triangle data. So output is being generated without Greyscale information.");
 	  result= xt::zeros<long>({gridsize,gridsize,gridsize});
 
 	  for (int x = 0; x < gridsize; x++) {
@@ -183,6 +187,8 @@ xt::pyarray<float>run(xt::pyarray<long> Triangles, xt::pyarray<long> Tetra, xt::
 	      }
 	    }
 	  }
+	}
+      
 	fprintf(stdout, "\n## STATS \n");
 	t.stop(); fprintf(stdout, "[Perf] Total runtime: %.1f ms \n", t.elapsed_time_milliseconds);
 	return result;

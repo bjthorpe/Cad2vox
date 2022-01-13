@@ -30,4 +30,5 @@ public:
 namespace cpu_voxelizer {
 	void cpu_voxelize_mesh(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool** tri_table, bool morton_order);
 	void cpu_voxelize_mesh_solid(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool morton_order);
+    xt::pyarray<long> cpu_voxelize_mesh_tetra(voxinfo info, Mesh* themesh);
 }

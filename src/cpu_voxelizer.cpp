@@ -354,4 +354,119 @@ namespace cpu_voxelizer {
 		}
 		cpu_voxelization_timer.stop(); fprintf(stdout, "[Perf] CPU voxelization time: %.1f ms \n", cpu_voxelization_timer.elapsed_time_milliseconds);
 	}
+/////////////////////////////////////////////////////////////////////////
+// function to check if a point p is on the same side as point v4 of a triangle (v1,v2,v3).
+bool SameSide(glm::vec3 v1,glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm::vec3 p)
+{
+  // Edge vectors
+  glm::vec3 e0 = v2 - v1;
+  glm::vec3 e1 = v3 - v2;
+  glm::vec3 e2 = v1 - v3;
+  // Normal vector pointing up from the triangle
+  glm::vec3 n = glm::normalize(glm::cross(e0, e1));
+  //glm::vec3 normal = glm::cross(v2 - v1, v3 - v1);
+  float dotV4 = glm::dot(n, v4 - v1);
+  float dotP = glm::dot(n, p - v1);
+  if (signbit(dotV4)==signbit(dotP)){
+    return true;
+    }
+  else
+    {
+    return false;
+    }
+}
+
+bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm::vec3 p)
+{
+  return (SameSide(v1, v2, v3, v4, p) &&
+	  SameSide(v2, v3, v4, v1, p) &&
+	  SameSide(v3, v4, v1, v2, p) &&
+	  SameSide(v4, v1, v2, v3, p));         
+}
+// Voxelise the mesh using tetrahedron data
+  xt::pyarray<long> cpu_voxelize_mesh_tetra(voxinfo info, Mesh* themesh) {
+		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
+		xt::pyarray<long> result= xt::zeros<long>({info.gridsize.x,info.gridsize.y,info.gridsize.z});
+		// PREPASS
+		// Move all vertices to origin (can be done in parallel)
+		xt::pyarray<float> move_min = glm_to_Xt<float>(info.bbox.min);
+#pragma omp parallel for
+		for (int64_t i = 0; i < themesh->Vertices.shape(0); i++) {
+			if (i == 0) { printf("[Info] Using %d threads \n", omp_get_num_threads()); }
+			
+			themesh->Vertices(i,0) = themesh->Vertices(i,0) - move_min(0);
+			themesh->Vertices(i,1) = themesh->Vertices(i,1) - move_min(1);
+			themesh->Vertices(i,2) = themesh->Vertices(i,2) - move_min(2);
+		}
+
+#ifdef _DEBUG
+		size_t debug_n_triangles = 0;
+		size_t debug_n_voxels_tested = 0;
+		size_t debug_n_voxels_marked = 0;
+#endif
+		
+#pragma omp parallel for shared(result)
+		
+		for (int64_t i = 0; i < themesh->Volume.shape(0); i++) {
+			// Common variables used in the voxelization process
+			glm::vec3 delta_p(info.unit.x, info.unit.y, info.unit.z);
+			glm::vec3 c(0.0f, 0.0f, 0.0f); // critical point
+			glm::vec3 grid_max(info.gridsize.x - 1, info.gridsize.y - 1, info.gridsize.z - 1); // grid max (grid runs from 0 to gridsize-1)
+#ifdef _DEBUG
+			debug_n_triangles++;
+#endif
+			// COMPUTE COMMON TRIANGLE PROPERTIES
+			// Move vertices to origin using bbox
+			int tetra_verts[4]; // Extract the vertices that make up tetrahedron i
+			for (int K = 0; K < 4; K++){
+			  tetra_verts[K] = themesh->Volume(i,K);
+			}
+			// get the xyz co-ordinates of each of the vertices A,B,C, and D as glm vectors
+			glm::vec3 A = glm::vec3(0,0,0);
+			glm::vec3 B = glm::vec3(0,0,0);
+			glm::vec3 C = glm::vec3(0,0,0);
+			glm::vec3 D = glm::vec3(0,0,0);
+			
+			for (int N = 0; N < 3; N++){
+			  A[N] = themesh->Vertices(tetra_verts[0],N);
+			  B[N] = themesh->Vertices(tetra_verts[1],N);
+			  C[N] = themesh->Vertices(tetra_verts[2],N);
+			  D[N] = themesh->Vertices(tetra_verts[3],N);
+			}
+
+			  			
+	        
+			// COMPUTE TETRA BBOX IN GRID COORDINATES
+			// Tetra bounding box in world coordinates is min(A,B,C,D) and max(A,B,C,D)
+			AABox<glm::vec3> t_bbox_world(glm::min(A, glm::min(B, glm::min(C,D))),glm::max(A, glm::max(B, glm::max(C,D))));
+			// Triangle bounding box in voxel grid coordinates is the world bounding box divided by the grid unit vector
+			AABox<glm::ivec3> t_bbox_grid;
+			t_bbox_grid.min = glm::clamp(t_bbox_world.min / info.unit, glm::vec3(0.0f, 0.0f, 0.0f), grid_max);
+			t_bbox_grid.max = glm::clamp(t_bbox_world.max / info.unit, glm::vec3(0.0f, 0.0f, 0.0f), grid_max);
+
+			
+			// test possible grid boxes for overlap
+			for (int z = t_bbox_grid.min.z; z <= t_bbox_grid.max.z; z++) {
+			  for (int y = t_bbox_grid.min.y; y <= t_bbox_grid.max.y; y++) {
+			    for (int x = t_bbox_grid.min.x; x <= t_bbox_grid.max.x; x++) {
+			      
+			      glm::vec3 P = glm::vec3(x*info.unit.x,y*info.unit.y,z*info.unit.z);
+			      // check if point p is on the "correct" side of all 4 triangles and thus inside the tetrahedron.
+			      //	bool test = PointInTetrahedron(A,B,C,D,P);
+			      if(PointInTetrahedron(A,B,C,D,P))
+				{
+				  result(x,y,z) = themesh ->Tags(i);
+				  continue;
+				}
+			      else {
+				// point was not inside tetrahedron
+				continue;
+			      }
+			    }
+			  }
+			}
+		}
+		cpu_voxelization_timer.stop(); fprintf(stdout, "[Perf] CPU voxelization time: %.1f ms \n", cpu_voxelization_timer.elapsed_time_milliseconds);
+		return result;
+  }
 }
