@@ -330,11 +330,11 @@ namespace cpu_voxelizer {
 			{
 				for (int z = bbox_min_grid.y; z <= bbox_max_grid.y; z++)
 				{
-					glm::vec2 point = glm::vec2((y + 0.5) * info.unit.y, (z + 0.5) * info.unit.z);
-					int checknum = check_point_triangle(v0_yz, v1_yz, v2_yz, point);
-					if ((checknum == 1 && TopLeftEdge(v0_yz, v1_yz)) || (checknum == 2 && TopLeftEdge(v1_yz, v2_yz)) || (checknum == 3 && TopLeftEdge(v2_yz, v0_yz)) || (checknum == 0))
+				  glm::vec2 point = glm::vec2((y + 0.5) * info.unit.y, (z + 0.5) * info.unit.z);
+				  int checknum = check_point_triangle(v0_yz, v1_yz, v2_yz, point);
+				  if ((checknum == 1 && TopLeftEdge(v0_yz, v1_yz)) || (checknum == 2 && TopLeftEdge(v1_yz, v2_yz)) || (checknum == 3 && TopLeftEdge(v2_yz, v0_yz)) || (checknum == 0))
 					{
-						unsigned int xmax = int(get_x_coordinate(n, v0, point) / info.unit.x - 0.5);
+					  unsigned int xmax = int(get_x_coordinate(n, v0, point) / info.unit.x - 0.5);
 						for (int x = 0; x <= xmax; x++)
 						{
 							if (morton_order) {
@@ -355,8 +355,19 @@ namespace cpu_voxelizer {
 		cpu_voxelization_timer.stop(); fprintf(stdout, "[Perf] CPU voxelization time: %.1f ms \n", cpu_voxelization_timer.elapsed_time_milliseconds);
 	}
 /////////////////////////////////////////////////////////////////////////
-// function to check if a point p is on the same side as point v4 of a triangle (v1,v2,v3).
-bool SameSide(glm::vec3 v1,glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm::vec3 p)
+// function to check if a point p is on the same side as another point X of a triangle (v1,v2,v3).
+// This is done by taking the dot product of both points with the normal vector.
+// If both dot products have the same sign X and p must both be on the same side of the triangle.
+// We apply this to the case of a tetrahedron by taking X as the final vertex of the tetrahedron. 
+// As such if p is on the same side of the triangle as X for each of the four faces p
+// must be found within the tetrahedron.
+
+// Also note: the c++ signbit function counts 0 as being +ve thus if p is in the same plane as
+// the triangle it may not count as being on the same side as X. For our case we want a point that is
+//  on the surface of the tetrahedron to count as being "inside" so we automatically allow that case. The other
+//  three checks should then confirm if the point is inside the triangle.
+
+bool SameSideTri(glm::vec3 v1,glm::vec3 v2,glm::vec3 v3,glm::vec3 X,glm::vec3 p)
 {
   // Edge vectors
   glm::vec3 e0 = v2 - v1;
@@ -365,9 +376,9 @@ bool SameSide(glm::vec3 v1,glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm::vec3 p)
   // Normal vector pointing up from the triangle
   glm::vec3 n = glm::normalize(glm::cross(e0, e1));
   //glm::vec3 normal = glm::cross(v2 - v1, v3 - v1);
-  float dotV4 = glm::dot(n, v4 - v1);
+  float dotX = glm::dot(n, X - v1);
   float dotP = glm::dot(n, p - v1);
-  if (signbit(dotV4)==signbit(dotP)){
+  if (signbit(dotX)==signbit(dotP)||dotP==0){
     return true;
     }
   else
@@ -375,14 +386,17 @@ bool SameSide(glm::vec3 v1,glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm::vec3 p)
     return false;
     }
 }
-
+  // check if the point P is inside the tetrahedron (v1,v2,v3,v4)
 bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm::vec3 p)
 {
-  return (SameSide(v1, v2, v3, v4, p) &&
-	  SameSide(v2, v3, v4, v1, p) &&
-	  SameSide(v3, v4, v1, v2, p) &&
-	  SameSide(v4, v1, v2, v3, p));         
+  return (SameSideTri(v1, v2, v3, v4, p) &&
+	  SameSideTri(v2, v3, v4, v1, p) &&
+	  SameSideTri(v3, v4, v1, v2, p) &&
+	  SameSideTri(v4, v1, v2, v3, p));
 }
+
+
+//// ACTUAL VOXELISATION /////////////////////////////////////////////////
 // Voxelise the mesh using tetrahedron data
   xt::pyarray<long> cpu_voxelize_mesh_tetra(voxinfo info, Mesh* themesh) {
 		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
@@ -449,10 +463,8 @@ bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm
 			for (int z = t_bbox_grid.min.z; z <= t_bbox_grid.max.z; z++) {
 			  for (int y = t_bbox_grid.min.y; y <= t_bbox_grid.max.y; y++) {
 			    for (int x = t_bbox_grid.min.x; x <= t_bbox_grid.max.x; x++) {
-			      
-			      glm::vec3 P = glm::vec3(x*info.unit.x,y*info.unit.y,z*info.unit.z);
+			      glm::vec3 P =  glm::vec3((x+0.5)*info.unit.x,(y+0.5)*info.unit.y,(z+0.5)*info.unit.x);
 			      // check if point p is on the "correct" side of all 4 triangles and thus inside the tetrahedron.
-			      //	bool test = PointInTetrahedron(A,B,C,D,P);
 			      if(PointInTetrahedron(A,B,C,D,P))
 				{
 				  result(x,y,z) = themesh ->Tags(i);
