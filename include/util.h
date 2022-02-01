@@ -66,7 +66,7 @@ struct voxinfo {
 	void print() {
 		fprintf(stdout, "[Voxelization] Bounding Box: (%f,%f,%f)-(%f,%f,%f) \n", bbox.min.x, bbox.min.y, bbox.min.z, bbox.max.x, bbox.max.y, bbox.max.z);
 		fprintf(stdout, "[Voxelization] Grid size: %i %i %i \n", gridsize.x, gridsize.y, gridsize.z);
-		fprintf(stdout, "[Voxelization] Triangles: %zu \n", n_triangles);
+		fprintf(stdout, "[Voxelization] Number of Elements: %zu \n", n_triangles);
 		fprintf(stdout, "[Voxelization] Unit length: x: %f y: %f z: %f\n", unit.x, unit.y, unit.z);
 	}
 };

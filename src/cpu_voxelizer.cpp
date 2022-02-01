@@ -38,14 +38,55 @@ namespace cpu_voxelizer {
 			host_morton256_x[(x) & 0xFF];
 		return answer;
 	}
+// function to check if a point p is on the same side as another point X of a triangle (v1,v2,v3).
+// This is done by taking the dot product of both points with the normal vector.
+// If both dot products have the same sign X and p must both be on the same side of the triangle.
+// We apply this to the case of a tetrahedron by taking X as the final vertex of the tetrahedron. 
+// As such if p is on the same side of the triangle as X for each of the four faces p
+// must be found within the tetrahedron.
+
+// Also note: the c++ signbit function counts 0 as being +ve thus if p is in the same plane as
+// the triangle it may not count as being on the same side as X. For our case we want a point that is
+//  on the surface of the tetrahedron to count as being "inside" so we automatically allow that case. The other
+//  three checks should then confirm if the point is inside the triangle.
+
+bool SameSideTri(glm::vec3 v1,glm::vec3 v2,glm::vec3 v3,glm::vec3 X,glm::vec3 p)
+{
+  // Edge vectors
+  glm::vec3 e0 = v2 - v1;
+  glm::vec3 e1 = v3 - v2;
+  glm::vec3 e2 = v1 - v3;
+  // Normal vector pointing up from the triangle
+  glm::vec3 n = glm::normalize(glm::cross(e0, e1));
+  //glm::vec3 normal = glm::cross(v2 - v1, v3 - v1);
+  float dotX = glm::dot(n, X - v1);
+  float dotP = glm::dot(n, p - v1);
+  if (signbit(dotX)==signbit(dotP)||dotP==0){
+    return true;
+    }
+  else
+    {
+    return false;
+    }
+}
+  // check if the point P is inside the tetrahedron (v1,v2,v3,v4)
+bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm::vec3 p)
+{
+  return (SameSideTri(v1, v2, v3, v4, p) &&
+	  SameSideTri(v2, v3, v4, v1, p) &&
+	  SameSideTri(v3, v4, v1, v2, p) &&
+	  SameSideTri(v4, v1, v2, v3, p));
+}
+
 
 	// Mesh voxelization method
-  void cpu_voxelize_mesh(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool** tri_table, bool morton_order) {
-		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
+ xt::pyarray<unsigned char>  cpu_voxelize_surface(voxinfo info, Mesh* themesh, bool morton_order) {
+    xt::pyarray<unsigned char> result= xt::zeros<unsigned char>({info.gridsize.x,info.gridsize.y,info.gridsize.z});
+    Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
 
 		// PREPASS
 		// Move all vertices to origin (can be done in parallel)
-		xt::pyarray<float> move_min = glm_to_Xt<float>(info.bbox.min);
+    xt::pyarray<float> move_min = glm_to_Xt<float>(info.bbox.min);
 #pragma omp parallel for
 		for (int64_t i = 0; i < themesh->Vertices.shape(0); i++) {
 			if (i == 0) { printf("[Info] Using %d threads \n", omp_get_num_threads()); }
@@ -63,7 +104,7 @@ namespace cpu_voxelizer {
 
 #pragma omp parallel for
 		
-		for (int64_t i = 0; i < info.n_triangles; i++) {
+		for (int64_t i = 0; i < themesh->Surface.shape(0); i++) {
 			// Common variables used in the voxelization process
 			glm::vec3 delta_p(info.unit.x, info.unit.y, info.unit.z);
 			glm::vec3 c(0.0f, 0.0f, 0.0f); // critical point
@@ -152,8 +193,6 @@ namespace cpu_voxelizer {
 			for (int z = t_bbox_grid.min.z; z <= t_bbox_grid.max.z; z++) {
 				for (int y = t_bbox_grid.min.y; y <= t_bbox_grid.max.y; y++) {
 					for (int x = t_bbox_grid.min.x; x <= t_bbox_grid.max.x; x++) {
-						// size_t location = x + (y*info.gridsize) + (z*info.gridsize*info.gridsize);
-						// if (checkBit(voxel_table, location)){ continue; }
 #ifdef _DEBUG
 						debug_n_voxels_tested++;
 #endif
@@ -184,15 +223,7 @@ namespace cpu_voxelizer {
 #ifdef _DEBUG
 						debug_n_voxels_marked += 1;
 #endif
-						if (morton_order) {
-							size_t location = mortonEncode_LUT(x, y, z);
-							setBit(voxel_table, location);
-						}
-						else {
-							size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y)* static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z)* static_cast<size_t>(info.gridsize.y)* static_cast<size_t>(info.gridsize.z));
-							setBit(voxel_table, location);
-							
-						}
+						result(x,y,z) = themesh ->Tags(i);	
 						continue;
 					}
 				}
@@ -204,6 +235,7 @@ namespace cpu_voxelizer {
 		printf("[Debug] Tested %llu voxels for overlap on CPU \n", debug_n_voxels_tested);
 		printf("[Debug] Marked %llu voxels as filled (includes duplicates!) on CPU \n", debug_n_voxels_marked);
 #endif
+		return result;
 	}
 
 	// use Xor for voxels whose corresponding bits have to flipped
@@ -239,10 +271,10 @@ namespace cpu_voxelizer {
 
 
 	//check the location with point and triangle
-	int check_point_triangle(glm::vec2 v0, glm::vec2 v1, glm::vec2 v2, glm::vec2 point) {
-		glm::vec2 PA = point - v0;
-		glm::vec2 PB = point - v1;
-		glm::vec2 PC = point - v2;
+	int check_point_triangle(glm::vec2 v0_yz, glm::vec2 v1_yz, glm::vec2 v2_yz, glm::vec2 point) {
+		glm::vec2 PA = point - v0_yz;
+		glm::vec2 PB = point - v1_yz;
+		glm::vec2 PC = point - v2_yz;
 
 		float t1 = PA.x * PB.y - PA.y * PB.x;
 		if (std::fabs(t1) < float_error && PA.x * PB.x <= 0 && PA.y * PB.y <= 0)
@@ -250,7 +282,7 @@ namespace cpu_voxelizer {
 
 		float t2 = PB.x * PC.y - PB.y * PC.x;
 		if (std::fabs(t2) < float_error && PB.x * PC.x <= 0 && PB.y * PC.y <= 0)
-			return 2;
+		  return 2;
 
 		float t3 = PC.x * PA.y - PC.y * PA.x;
 		if (std::fabs(t3) < float_error && PC.x * PA.x <= 0 && PC.y * PA.y <= 0)
@@ -263,9 +295,9 @@ namespace cpu_voxelizer {
 	}
 
 	// Mesh voxelization method
-	void cpu_voxelize_mesh_solid(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool morton_order) {
+xt::pyarray<unsigned char> cpu_voxelize_surface_solid(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool morton_order) {
 		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
-
+		xt::pyarray<unsigned char> result= xt::zeros<unsigned char>({info.gridsize.x,info.gridsize.y,info.gridsize.z});
 		// PREPASS
 		// Move all vertices to origin (can be done in parallel)
 		xt::pyarray<float> move_min = glm_to_Xt<float>(info.bbox.min);
@@ -278,7 +310,7 @@ namespace cpu_voxelizer {
 		}
 
 #pragma omp parallel for
-		for (int64_t i = 0; i < info.n_triangles; i++) {
+		for (int64_t i = 0; i < themesh->Surface.shape(0); i++) {
 		  
 		  int triangle_verts[3]; // Extract the vertices that make up triangle i
 			for (int K = 0; K < 3; K++){
@@ -326,81 +358,36 @@ namespace cpu_voxelizer {
 			glm::vec2 bbox_max_grid = glm::vec2(floor(bbox_max.x / info.unit.y - 0.5), floor(bbox_max.y / info.unit.z - 0.5));
 			glm::vec2 bbox_min_grid = glm::vec2(ceil(bbox_min.x / info.unit.y - 0.5), ceil(bbox_min.y / info.unit.z - 0.5));
 
-			for (int y = bbox_min_grid.x; y <= bbox_max_grid.x; y++)
-			{
-				for (int z = bbox_min_grid.y; z <= bbox_max_grid.y; z++)
-				{
-				  glm::vec2 point = glm::vec2((y + 0.5) * info.unit.y, (z + 0.5) * info.unit.z);
-				  int checknum = check_point_triangle(v0_yz, v1_yz, v2_yz, point);
-				  if ((checknum == 1 && TopLeftEdge(v0_yz, v1_yz)) || (checknum == 2 && TopLeftEdge(v1_yz, v2_yz)) || (checknum == 3 && TopLeftEdge(v2_yz, v0_yz)) || (checknum == 0))
-					{
-					  unsigned int xmax = int(get_x_coordinate(n, v0, point) / info.unit.x - 0.5);
-						for (int x = 0; x <= xmax; x++)
-						{
-							if (morton_order) {
-								size_t location = mortonEncode_LUT(x, y, z);
-								setBitXor(voxel_table, location);
-							}
-							else {
-								size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y) * static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z) * static_cast<size_t>(info.gridsize.y) * static_cast<size_t>(info.gridsize.z));
-								setBitXor(voxel_table, location);
-							}
-							continue;
-						}
-					}
+			for (int y = bbox_min_grid.x; y <= bbox_max_grid.x; y++){
+			  for (int z = bbox_min_grid.y; z <= bbox_max_grid.y; z++){
+			    glm::vec2 point = glm::vec2((y + 0.5) * info.unit.y, (z + 0.5) * info.unit.z);
+			    int checknum = check_point_triangle(v0_yz, v1_yz, v2_yz, point);
+			    if ((checknum == 1 && TopLeftEdge(v0_yz, v1_yz)) || (checknum == 2 && TopLeftEdge(v1_yz, v2_yz)) || (checknum == 3 && TopLeftEdge(v2_yz, v0_yz)) || (checknum == 0))
+			      {
+				unsigned int xmax = int(floor(get_x_coordinate(n, v0, point) / info.unit.x - 0.5));
+				for (int x = 0; x <= xmax; x++){	  
+				  size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y) * static_cast<size_t>(info.gridsize.y)) +
+				    (static_cast<size_t>(z) *static_cast<size_t>(info.gridsize.y) * static_cast<size_t>(info.gridsize.z));
+					  
+				  setBitXor(voxel_table, location);
+				  continue;
 				}
+			      }
+			  }
 			}
-
 		}
+
+
 		cpu_voxelization_timer.stop(); fprintf(stdout, "[Perf] CPU voxelization time: %.1f ms \n", cpu_voxelization_timer.elapsed_time_milliseconds);
+		return result;
 	}
 /////////////////////////////////////////////////////////////////////////
-// function to check if a point p is on the same side as another point X of a triangle (v1,v2,v3).
-// This is done by taking the dot product of both points with the normal vector.
-// If both dot products have the same sign X and p must both be on the same side of the triangle.
-// We apply this to the case of a tetrahedron by taking X as the final vertex of the tetrahedron. 
-// As such if p is on the same side of the triangle as X for each of the four faces p
-// must be found within the tetrahedron.
-
-// Also note: the c++ signbit function counts 0 as being +ve thus if p is in the same plane as
-// the triangle it may not count as being on the same side as X. For our case we want a point that is
-//  on the surface of the tetrahedron to count as being "inside" so we automatically allow that case. The other
-//  three checks should then confirm if the point is inside the triangle.
-
-bool SameSideTri(glm::vec3 v1,glm::vec3 v2,glm::vec3 v3,glm::vec3 X,glm::vec3 p)
-{
-  // Edge vectors
-  glm::vec3 e0 = v2 - v1;
-  glm::vec3 e1 = v3 - v2;
-  glm::vec3 e2 = v1 - v3;
-  // Normal vector pointing up from the triangle
-  glm::vec3 n = glm::normalize(glm::cross(e0, e1));
-  //glm::vec3 normal = glm::cross(v2 - v1, v3 - v1);
-  float dotX = glm::dot(n, X - v1);
-  float dotP = glm::dot(n, p - v1);
-  if (signbit(dotX)==signbit(dotP)||dotP==0){
-    return true;
-    }
-  else
-    {
-    return false;
-    }
-}
-  // check if the point P is inside the tetrahedron (v1,v2,v3,v4)
-bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm::vec3 p)
-{
-  return (SameSideTri(v1, v2, v3, v4, p) &&
-	  SameSideTri(v2, v3, v4, v1, p) &&
-	  SameSideTri(v3, v4, v1, v2, p) &&
-	  SameSideTri(v4, v1, v2, v3, p));
-}
-
 
 //// ACTUAL VOXELISATION /////////////////////////////////////////////////
 // Voxelise the mesh using tetrahedron data
-  xt::pyarray<long> cpu_voxelize_mesh_tetra(voxinfo info, Mesh* themesh) {
+  xt::pyarray<unsigned char> cpu_voxelize_volume(voxinfo info, Mesh* themesh) {
 		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
-		xt::pyarray<long> result= xt::zeros<long>({info.gridsize.x,info.gridsize.y,info.gridsize.z});
+		xt::pyarray<unsigned char> result= xt::zeros<unsigned char>({info.gridsize.x,info.gridsize.y,info.gridsize.z});
 		// PREPASS
 		// Move all vertices to origin (can be done in parallel)
 		xt::pyarray<float> move_min = glm_to_Xt<float>(info.bbox.min);

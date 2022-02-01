@@ -28,7 +28,7 @@ public:
 };
 
 namespace cpu_voxelizer {
-	void cpu_voxelize_mesh(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool** tri_table, bool morton_order);
-	void cpu_voxelize_mesh_solid(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool morton_order);
-    xt::pyarray<long> cpu_voxelize_mesh_tetra(voxinfo info, Mesh* themesh);
+	xt::pyarray<unsigned char> cpu_voxelize_surface(voxinfo info, Mesh* themesh, bool morton_order);
+	xt::pyarray<unsigned char> cpu_voxelize_surface_solid(voxinfo info, Mesh* themesh,unsigned int* vtable, bool morton_order);
+    xt::pyarray<unsigned char> cpu_voxelize_volume(voxinfo info, Mesh* themesh);
 }
