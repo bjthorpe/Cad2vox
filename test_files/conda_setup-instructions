@@ -1,0 +1,11 @@
+conda create -n CudaVox
+conda activate CudaVox
+conda install cmake=3.19
+conda install cudatoolkit
+conda install -c conda-forge meshio
+conda install -c conda-forge xtensor xtl
+conda install pybind11
+conda install tifffile
+conda install h5py
+cmake ..
+

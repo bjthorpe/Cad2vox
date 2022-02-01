@@ -184,3 +184,9 @@ FakesAssemblies/
 #Generated voxel models
 *.binvox
 *.bin
+
+#CMAKE stuff
+CMakeFiles/*
+Makefile
+cad2vox.egg-info/*
+dist/*
