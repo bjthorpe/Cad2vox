@@ -295,9 +295,8 @@ bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm
 	}
 
 	// Mesh voxelization method
-xt::pyarray<unsigned char> cpu_voxelize_surface_solid(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool morton_order) {
+void  cpu_voxelize_surface_solid(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool morton_order) {
 		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
-		xt::pyarray<unsigned char> result= xt::zeros<unsigned char>({info.gridsize.x,info.gridsize.y,info.gridsize.z});
 		// PREPASS
 		// Move all vertices to origin (can be done in parallel)
 		xt::pyarray<float> move_min = glm_to_Xt<float>(info.bbox.min);
@@ -358,28 +357,29 @@ xt::pyarray<unsigned char> cpu_voxelize_surface_solid(voxinfo info, Mesh* themes
 			glm::vec2 bbox_max_grid = glm::vec2(floor(bbox_max.x / info.unit.y - 0.5), floor(bbox_max.y / info.unit.z - 0.5));
 			glm::vec2 bbox_min_grid = glm::vec2(ceil(bbox_min.x / info.unit.y - 0.5), ceil(bbox_min.y / info.unit.z - 0.5));
 
-			for (int y = bbox_min_grid.x; y <= bbox_max_grid.x; y++){
-			  for (int z = bbox_min_grid.y; z <= bbox_max_grid.y; z++){
-			    glm::vec2 point = glm::vec2((y + 0.5) * info.unit.y, (z + 0.5) * info.unit.z);
-			    int checknum = check_point_triangle(v0_yz, v1_yz, v2_yz, point);
-			    if ((checknum == 1 && TopLeftEdge(v0_yz, v1_yz)) || (checknum == 2 && TopLeftEdge(v1_yz, v2_yz)) || (checknum == 3 && TopLeftEdge(v2_yz, v0_yz)) || (checknum == 0))
+			for (int y = bbox_min_grid.x; y <= bbox_max_grid.x; y++)
+			  {
+			    for (int z = bbox_min_grid.y; z <= bbox_max_grid.y; z++)
 			      {
-				unsigned int xmax = int(floor(get_x_coordinate(n, v0, point) / info.unit.x - 0.5));
-				for (int x = 0; x <= xmax; x++){	  
-				  size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y) * static_cast<size_t>(info.gridsize.y)) +
-				    (static_cast<size_t>(z) *static_cast<size_t>(info.gridsize.y) * static_cast<size_t>(info.gridsize.z));
-					  
-				  setBitXor(voxel_table, location);
-				  continue;
+			      glm::vec2 point = glm::vec2((y + 0.5) * info.unit.y, (z + 0.5) * info.unit.z);
+			      int checknum = check_point_triangle(v0_yz, v1_yz, v2_yz, point);
+			      if ((checknum == 1 && TopLeftEdge(v0_yz, v1_yz)) || (checknum == 2 && TopLeftEdge(v1_yz, v2_yz)) || (checknum == 3 && TopLeftEdge(v2_yz, v0_yz)) || (checknum == 0))
+				{
+				  unsigned int xmax = int(get_x_coordinate(n, v0, point) / info.unit.x - 0.5);
+				  for (int x = 0; x <= xmax; x++){	  
+				    size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y) * static_cast<size_t>(info.gridsize.y)) +
+				      (static_cast<size_t>(z) *static_cast<size_t>(info.gridsize.y) * static_cast<size_t>(info.gridsize.z));
+				    
+				    setBitXor(voxel_table, location);
+				    continue;
+				  }
 				}
-			      }
+			    }
 			  }
-			}
 		}
 
 
 		cpu_voxelization_timer.stop(); fprintf(stdout, "[Perf] CPU voxelization time: %.1f ms \n", cpu_voxelization_timer.elapsed_time_milliseconds);
-		return result;
 	}
 /////////////////////////////////////////////////////////////////////////
 

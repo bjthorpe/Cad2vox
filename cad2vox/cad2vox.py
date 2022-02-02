@@ -44,7 +44,7 @@ def Voxelise(input_file,output_file,greyscale_file=None,solid=False,gridsize=0,u
        Bbox_min=mesh_min_corner,Bbox_max=mesh_max_corner,solid=solid,
         gridsize=gridsize,use_tetra=use_tetra)).astype('uint8')
     # write resultant 3D NP array as tiff stack
-    tf.imwrite(output_file,Vox,imagej=True,photometric='minisblack')
+    tf.imwrite(output_file,Vox,photometric='minisblack')
 
 def generate_greyscale(mat_tags,mat_ids):
     # create list of tags and greyscale values for each material used

@@ -54,6 +54,35 @@ __device__ __inline__ void setBit(unsigned int* voxel_table, size_t index){
 	atomicOr(&(voxel_table[int_location]), mask);
 }
 
+__device__ bool SameSideTri(glm::vec3 v1,glm::vec3 v2,glm::vec3 v3,glm::vec3 X,glm::vec3 p)
+{
+  // Edge vectors
+  glm::vec3 e0 = v2 - v1;
+  glm::vec3 e1 = v3 - v2;
+  glm::vec3 e2 = v1 - v3;
+  // Normal vector pointing up from the triangle
+  glm::vec3 n = glm::normalize(glm::cross(e0, e1));
+  //glm::vec3 normal = glm::cross(v2 - v1, v3 - v1);
+  float dotX = glm::dot(n, X - v1);
+  float dotP = glm::dot(n, p - v1);
+  if (signbit(dotX)==signbit(dotP)||dotP==0){
+    return true;
+    }
+  else
+    {
+    return false;
+    }
+}
+  // check if the point P is inside the tetrahedron (v1,v2,v3,v4)
+__device__ bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm::vec3 p)
+{
+  return (SameSideTri(v1, v2, v3, v4, p) &&
+	  SameSideTri(v2, v3, v4, v1, p) &&
+	  SameSideTri(v3, v4, v1, v2, p) &&
+	  SameSideTri(v4, v1, v2, v3, p));
+}
+
+
 // Main triangle voxelization method
 __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned int* voxel_table, bool morton_order){
 	size_t thread_id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -187,8 +216,63 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 	}
 }
 
-void voxelize(const voxinfo& v, float* triangle_data, unsigned int* vtable, bool useThrustPath, bool morton_code) {
-	float   elapsedTime;
+// Main tetrahedron voxelization method
+__global__ void voxelize_tetra(voxinfo info, float* tet_data, unsigned int* voxel_table, bool morton_order){
+	size_t thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+	size_t stride = blockDim.x * gridDim.x;
+
+	// Common variables used in the voxelization process
+	glm::vec3 delta_p(info.unit.x, info.unit.y, info.unit.z);
+	glm::vec3 grid_max(info.gridsize.x - 1, info.gridsize.y - 1, info.gridsize.z - 1); // grid max (grid runs from 0 to gridsize-1)
+
+	while (thread_id < info.n_triangles){ // every thread works on specific tetrahedron in its stride
+		size_t t = thread_id * 12; // tetrahedron contains 12 vertices
+
+		// COMPUTE COMMON TET PROPERTIES
+		// Move vertices to origin using bbox
+		glm::vec3 A = glm::vec3(tet_data[t], tet_data[t + 1], tet_data[t + 2]) - info.bbox.min;
+		glm::vec3 B = glm::vec3(tet_data[t + 3], tet_data[t + 4], tet_data[t + 5]) - info.bbox.min; 
+		glm::vec3 C = glm::vec3(tet_data[t + 6], tet_data[t + 7], tet_data[t + 8]) - info.bbox.min;
+        glm::vec3 D = glm::vec3(tet_data[t + 9], tet_data[t + 10], tet_data[t + 11]) - info.bbox.min;
+		
+
+		// COMPUTE TETRA BBOX IN GRID
+		// Tetrahedron bounding box in world coordinates is min(A,B,C,D) and max(A,B,C,D)
+        AABox<glm::vec3> t_bbox_world(glm::min(A, glm::min(B, glm::min(C,D))),glm::max(A, glm::max(B, glm::max(C,D))));
+		// Tetrahedron bounding box in voxel grid coordinates is the world bounding box divided by the grid unit vector
+		AABox<glm::ivec3> t_bbox_grid;
+		t_bbox_grid.min = glm::clamp(t_bbox_world.min / info.unit, glm::vec3(0.0f, 0.0f, 0.0f), grid_max);
+		t_bbox_grid.max = glm::clamp(t_bbox_world.max / info.unit, glm::vec3(0.0f, 0.0f, 0.0f), grid_max);
+
+		
+		// test possible grid boxes for overlap
+		for (int z = t_bbox_grid.min.z; z <= t_bbox_grid.max.z; z++){
+			for (int y = t_bbox_grid.min.y; y <= t_bbox_grid.max.y; y++){
+				for (int x = t_bbox_grid.min.x; x <= t_bbox_grid.max.x; x++){
+					// size_t location = x + (y*info.gridsize) + (z*info.gridsize*info.gridsize);
+					// if (checkBit(voxel_table, location)){ continue; }
+                    glm::vec3 P =  glm::vec3((x+0.5)*info.unit.x,(y+0.5)*info.unit.y,(z+0.5)*info.unit.x);
+			        // check if point p is on the "correct" side of all 4 triangles and thus inside the tetrahedron.
+			        if(PointInTetrahedron(A,B,C,D,P))
+                    {
+					if (morton_order){
+						size_t location = mortonEncode_LUT(x, y, z);
+						setBit(voxel_table, location);
+					} else {
+						size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y)* static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z)* static_cast<size_t>(info.gridsize.y)* static_cast<size_t>(info.gridsize.z));
+						setBit(voxel_table, location);
+					}
+					continue;
+				    }
+			    }
+		    }
+		thread_id += stride;
+	    }
+}
+}
+
+void voxelize(const voxinfo& v, float* element_data, unsigned int* vtable, bool useThrustPath, bool use_tetra, bool morton_code) {
+	float elapsedTime;
 
 	// These are only used when we're not using UNIFIED memory
 	unsigned int* dev_vtable; // DEVICE pointer to voxel_data
@@ -221,11 +305,13 @@ void voxelize(const voxinfo& v, float* triangle_data, unsigned int* vtable, bool
 		checkCudaErrors(cudaMemset(dev_vtable, 0, vtable_size));
 		// Start voxelization
 		checkCudaErrors(cudaEventRecord(start_vox, 0));
-		voxelize_triangle << <gridSize, blockSize >> > (v, triangle_data, dev_vtable, morton_code);
+    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, dev_vtable, morton_code);}
+	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, dev_vtable, morton_code);}
 	}
 	else { // UNIFIED MEMORY 
 		checkCudaErrors(cudaEventRecord(start_vox, 0));
-		voxelize_triangle << <gridSize, blockSize >> > (v, triangle_data, vtable, morton_code);
+    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, vtable, morton_code);}
+	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, vtable, morton_code);}
 	}
 
 	cudaDeviceSynchronize();
