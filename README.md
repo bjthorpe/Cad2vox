@@ -1,120 +1,129 @@
-[![Build Status](https://travis-ci.org/Forceflow/cuda_voxelizer.svg?branch=master)](https://travis-ci.org/Forceflow/cuda_voxelizer) ![](https://img.shields.io/github/license/Forceflow/cuda_voxelizer.svg) [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/Forceflow)
+## Details
+Cad2vox and CudaVox are Python packages to efficiently perform mesh voxelisation on GPU (using CUDA) or CPU (using OpenMP) for surface and volume cad meshes based on triangles and tetrahedrons respectively.
 
-# cuda_voxelizer v0.4.11
-A command-line tool to convert polygon meshes to (annotated) voxel grids.
- * Supported input formats: .ply, .off, .obj, .3DS, .SM and RAY
- * Supported output formats: .binvox, .obj, morton ordered grid
- * Requires a CUDA-compatible video card. Compute Capability 2.0 or higher (Nvidia Fermi or better).
-   * Since v0.4.4, the voxelizer reverts to a (slower) CPU voxelization method when no CUDA device is found
+The code itself consists of two Python packages. CudaVox a python package built from the c++ code using pybind11 and cad2vox which is a pure python package that reads in and wrangles the mesh/greyscale data using meshio and acts as a user interface to Cudavox.
 
-## Usage
-Program options:
- * `-f <path to model file>`: **(required)** A path to a polygon-based 3D model file. 
- * `-s <voxel grid length>`: The length of the cubical voxel grid. Default: 256, resulting in a 256 x 256 x 256 voxelization grid.  The tool will automatically select the tightest cubical bounding box around the model.
- * `-o <output format>`: The output format for voxelized models, default: *binvox*. Output files are saved in the same folder as the input file.
-   * `binvox`: A [binvox](http://www.patrickmin.com/binvox/binvox.html) file (default). Can be viewed using [viewvox](http://www.patrickmin.com/viewvox/).
-   * `obj`: A mesh containing actual cubes (made up of triangle faces) for each voxel.
-   * `obj_points`: A mesh containing a point cloud, with a vertex for each voxel. Can be viewed using any compatible viewer that can just display vertices, like [Blender](https://www.blender.org/) or [Meshlab](https://www.meshlab.net/).
-   * `morton`: a binary file containing a Morton-ordered grid. This is a format I personally use for other tools.
- * `-cpu`: Force voxelization on the CPU instead of GPU. For when a CUDA device is not detected/compatible, or for very small models where GPU call overhead is not worth it. This is done multi-threaded, but will be slower for large models / grid sizes.
- * `-thrust` : Use Thrust library for copying the model data to the GPU, for a possible speed / throughput improvement. I found this to be very system-dependent. Default: disabled.
- * `-solid` : (Experimental) Use solid voxelization instead of voxelizing the mesh faces. Needs a watertight input mesh.
+This project is a fork of cuda_voxelizer (https://github.com/Forceflow/cuda_voxelizer) the original plan was to simply add bindings to allow us to call it from python. However as my research project progressed the code has since ballooned into its own thing (adding support for volume meshes and using meshio and xtensor instead of trimesh). Thus it feels more appropriate to release it as a standalone project.
 
-  
-## Examples
+For Surface meshes (based on triangles) CudaVox implements an optimised version of the method described in M. Schwarz and HP Seidel's 2010 paper [*Fast Parallel Surface and Solid Voxelization on GPU's*](http://research.michael-schwarz.com/publ/2010/vox/).
 
-`cuda_voxelizer -f bunny.ply -s 256` generates a 256 x 256 x 256 binvox-based voxel model which will be stored in `bunny_256.binvox`. 
+For volume meshes (based on Tetrahedrons) it uses a simple algorithm to check if a point P (taken as the centre of the voxel) is inside a tetrahedron defined by 4 vertices (A,B,C,D). This is achieved by calculating  the normal of the four triangles that make up the surface of the tetrahedron. Since these vectors will all point away from the centre of the tetrahedron we can simply check to see if the point P is on the opposite side of the plane for each of the four triangles. if this is true for all 4 planes then the point must be inside the tetrahedron (see https://stackoverflow.com/questions/25179693/how-to-check-whether-the-point-is-in-the-tetrahedron-or-not/51733522#51733522 for examples of this algorithm implemented in python).
 
-`cuda_voxelizer -f torus.ply -s 64 -o obj -thrust -solid` generates a solid (filled) 64 x 64 x 64 .obj voxel model which will be stored in `torus_64.obj`. During voxelization, the Cuda Thrust library will be used for a possible speedup, but YMMV.
-
-![output_examples](https://raw.githubusercontent.com/Forceflow/cuda_voxelizer/main/img/output_examples.jpg)
-
-## Building
-The build process is aimed at 64-bit executables. It might be possible to build for 32-bit as well, but I'm not actively testing/supporting this.
-You can build using CMake, or using the provided Visual Studio project. Since November 2019, cuda_voxelizer also builds on [Travis CI](https://travis-ci.org/Forceflow/cuda_voxelizer), so check out the [yaml config file](https://github.com/Forceflow/cuda_voxelizer/blob/main/.travis.yml) for more Linux build support.
+## Building and Installing
 
 ### Dependencies
 The project has the following build dependencies:
- * [Nvidia Cuda 8.0 Toolkit (or higher)](https://developer.nvidia.com/cuda-toolkit) for CUDA + Thrust libraries (standard included)
- * [Trimesh2](https://github.com/Forceflow/trimesh2) for model importing. Latest version recommended.
+ * [Nvidia Cuda 8.0 (or higher)](https://developer.nvidia.com/cuda-toolkit) for CUDA + Thrust libraries (standard included)
  * [GLM](http://glm.g-truc.net/0.9.8/index.html) for vector math. Any recent version will do.
  * [OpenMP](https://www.openmp.org/)
+ * [Python] version 3.6 or higher.
+ 
+ You will also need the following python packages:
+ * cmake
+ * numpy
+ * pybind11
+ * tifffile
+ * xtensor
+ * xtl
+ * xtensor-python
+ * meshio
+ * pytest
 
-### Build using CMake (Windows, Linux)
+We recommend using anaconda as they are all available and can be installed with the following two commands.
 
-After installing dependencies, do `mkdir build` and `cd build`, followed by:
-
-For Windows with Visual Studio 2019:
-```powershell
-$env:CUDAARCHS="your_cuda_compute_capability"
-cmake -A x64 -DTrimesh2_INCLUDE_DIR:PATH="path_to_trimesh2_include" -DTrimesh2_LINK_DIR:PATH="path_to_trimesh2_library_dir" .. 
-```
-
-For Linux:
 ```bash
-CUDAARCHS="your_cuda_compute_capability" cmake -DTrimesh2_INCLUDE_DIR:PATH="path_to_trimesh2_include" -DTrimesh2_LINK_DIR:PATH="path_to_trimesh2_library_dir" -DCUDA_ARCH:STRING="your_cuda_compute_capability" .. 
-```
-Where `your_cuda_compute_capability` is a string specifying your CUDA architecture ([more info here](https://docs.nvidia.com/cuda/archive/10.2/cuda-compiler-driver-nvcc/index.html#options-for-steering-gpu-code-generation-gpu-architecture) and [here CMake](https://cmake.org/cmake/help/v3.20/envvar/CUDAARCHS.html#envvar:CUDAARCHS)). For example: `CUDAARCHS="50;61"` or `CUDAARCHS="60"`.
+conda install cmake numpy pybind11 tifffile
 
-Finally, run
-```
-cmake --build . --parallel number_of_cores
+conda install -c conda-forge xtensor xtl meshio xtensor-python
 ```
 
-### Build using Visual Studio project (Windows)
-
-A Visual Studio 2019 project solution is provided in the `msvc`folder. It is configured for CUDA 11, but you can edit the project file to make it work with lower CUDA versions. You can edit the `custom_includes.props` file to configure the library locations, and specify a place where the resulting binaries should be placed.
-
+If however, you wish to use pure python many of the packages are available through pip and you can obtain them using:
+```bash
+pip install -r requirements.txt
 ```
-    <TRIMESH_DIR>C:\libs\trimesh2\</TRIMESH_DIR>
-    <GLM_DIR>C:\libs\glm\</GLM_DIR>
-    <BINARY_OUTPUT_DIR>D:\dev\Binaries\</BINARY_OUTPUT_DIR>
+You will however, need to build xtl, xtensor and xtensor-python from source using cmake. Instructions for which can be found here:
+
+*[Xtl](https://github.com/xtensor-stack/xtl)
+*[Xtensor](https://github.com/xtensor-stack/xtensor)
+*[Xtensor-python](https://github.com/xtensor-stack/xtensor-python)
+
+Once you have the dependencies installed you can use the setup.py scripts to build and install the two packages as:
+
+```python
+python3 setup_cudavox.py install
+
+python3 setup_cad2vox.py install
 ```
-## Details
-`cuda_voxelizer` implements an optimized version of the method described in M. Schwarz and HP Seidel's 2010 paper [*Fast Parallel Surface and Solid Voxelization on GPU's*](http://research.michael-schwarz.com/publ/2010/vox/). The morton-encoded table was based on my 2013 HPG paper [*Out-Of-Core construction of Sparse Voxel Octrees*](http://graphics.cs.kuleuven.be/publications/BLD14OCCSVO/)  and the work in [*libmorton*](https://github.com/Forceflow/libmorton).
 
-`cuda_voxelizer` is built with a focus on performance. Usage of the routine as a per-frame voxelization step for real-time applications is viable. These are the voxelization timings for the [Stanford Bunny Model](https://graphics.stanford.edu/data/3Dscanrep/) (1,55 MB, 70k triangles). 
- * This is the voxelization time for a non-solid voxelization. No I/O - from disk or to GPU - is included in this timing.
- * CPU voxelization time is heavily dependent on how many cores your CPU has - OpenMP allocates 1 thread per core.
+## Usage
 
-| Grid size | GPU (GTX 1050 TI) | CPU (Intel i7 8750H, 12 threads) |
-|-----------|--------|--------|
-| 64³     | 0.2 ms | 39.8 ms |
-| 128³     | 0.3 ms | 63.6 ms |
-| 256³     | 0.6 ms | 118.2 ms |
-| 512³     | 1.8 ms | 308.8 ms |
-| 1024³    | 8.6 ms | 1047.5 ms |
-| 2048³    | 44.6 ms | 4147.4 ms |
+The main user facing function from cad2vox is voxelise. The following can be viewed at anytime through python by calling:
 
-## Notes / See Also
- * The [.binvox file format](https://www.patrickmin.com/binvox/binvox.html) was created by Michael Kazhdan. 
-   * [Patrick Min](https://www.patrickmin.com/binvox/) wrote some interesting tools to work with it:
-     * [viewvox](https://www.patrickmin.com/viewvox/): Visualization of voxel grids (a copy of this tool is included in cuda_voxelizer releases)
-     * [thinvox](https://www.patrickmin.com/thinvox/): Thinning of voxel grids
-   * [binvox-rw-py](https://github.com/dimatura/binvox-rw-py) is a Python module to interact with .binvox files
- * Thanks to [conceptclear](https://github.com/conceptclear) for implementing solid voxelization
- * [Zarbuz](https://github.com/zarbuz)'s [FileToVox](https://github.com/Zarbuz/FileToVox) looks interesting as well
- * If you want a good customizable CPU-based voxelizer, I can recommend [VoxSurf](https://github.com/sylefeb/VoxSurf).
- * Another hackable voxel viewer is Sean Barrett's excellent [stb_voxel_render.h](https://github.com/nothings/stb/blob/master/stb_voxel_render.h).
- * Nvidia also has a voxel library called [GVDB](https://developer.nvidia.com/gvdb), that does a lot more than just voxelizing.
+```python
+import cad2vox
+help(cad2vox.voxelise)
+```
 
-## Todo / Possible future work
-This is on my list of nice things to add. Don't hesistate to crack one of these yourself and make a PR!
+voxelise(input_file, output_file, greyscale_file=None, gridsize=0, unit_length=-1.0, use_tetra=True, cpu=False, solid=False)
 
- * Noncubic grid support
- * Memory limits test
- * Output to more popular voxel formats like MagicaVoxel, Minecraft
- * Implement partitioning for larger models
- * Do a pre-pass to categorize triangles
- * Implement capture of normals / color / texture data
+    Parameters:
+    input_file (string): Hopefully self explanatory, Our recommended (i.e. tested) format is Salome
+    med. However, theoretically any of the approx. 30 file formats supported by meshio will
+    work. Provided they are using either tetrahedrons or triangles as there element type
+    (see https://github.com/nschloe/meshio for the full list).
+
+    output_file (string): Filename for output as 8 bit grey-scale tiff stack.
+
+    grey-scale_file (string/None): csv file for defining custom Grey-scale values. If not given the
+    code evenly distributes grey-scale values from 0 to 255 across all materials defined in the
+    input file. It also auto-generates a file 'greyscale.csv' with the correct formatting which
+    you can then tweak to your liking.
+
+    gridsize (+ve int): Number of voxels in each axis. That is you get a grid of grisize^3 voxels
+    and the resulting output will be a tiff stack of gridsize by gridside images.
+    Note: if you set this to any positive integer except 0 it will calculate unit length for you
+    based on the max and min of the mesh so in that case you don't set unit_length. i.e. leave
+    unit_length at it's default value. (see unit_length for details).
+
+    unit_length (+ve non-zero float): size of each voxel in mesh co-ordinate space. You can define
+    this instead of Gridsize to calculate the number of voxels in each dimension, again based on max
+    and min of the mesh grid. Again if using Gridsize leave this a default value (i.e. -1.0).
+
+    use_tetra (bool): flag to specifically use Tetrahedrons instead of Triangles. This only applies
+    in the event that you have multiple element types defined in the same file. Normally the code
+    defaults to triangles however this flag overrides that.
+
+    cpu (bool): Flag to ignore any CUDA capable GPUS and instead use the OpenMp implementation. 
+    By default the code will first check for GPUS and only use OpenMP as a fallback. This flag 
+    overrides that and forces the use of OpenMP.
+
+    Solid (bool): This Flag can be set if you want to auto-fill the interior when using a Surface
+    Mesh (only applies to Triangles). If you intend to use this functionality there are three
+    Caveats to briefly note here:
+
+    1) This flag will be ignored if you only supply Tetrahedron data or set use_tetra since in
+    both cases that is by definition not a surface mesh.
+
+    2) The algorithm currently used is considerably slower and not robust (can lead to artefacts and
+    holes in complex meshes).
+
+    3) Setting this flag turns off grey-scale values (background becomes 0 and the mesh becomes 255).
+    This is because we don't have any data as to what materials are inside the mesh so this seems a
+    sensible default.
+
+    The only reason 2 and 3 exist is because this functionally is not actively being used by our
+    team so there has been no pressing need to fix them. However, if any of these become an
+    issue either message b.j.thorpe@swansea.ac.uk or raise an issue on git repo as they can easily
+    be fixed and incorporated into a future release.
+
  
 ## Citation
-If you use cuda_voxelizer in your published paper or other software, please reference it, for example as follows:
+If you use Cad2Vox in your published paper or other software, please reference it, for example as follows:
 <pre>
-@Misc{cudavoxelizer17,
-author = "Jeroen Baert",
-title = "Cuda Voxelizer: A GPU-accelerated Mesh Voxelizer",
-howpublished = "\url{https://github.com/Forceflow/cuda_voxelizer}",
-year = "2017"}
+@Misc{CAD2VOX,
+author = "Dr Benjamin Thorpe",
+title = "Cad2Vox",
+howpublished = "\url{https://github.com/bjthorpe/Cad2vox}",
+year = "2022"}
 </pre>
-If you end up using cuda_voxelizer in something cool, drop me an e-mail: **mail (at) jeroen-baert.be**
+If you end up using cuda_voxelizer in something cool, drop me an e-mail: **b,.j.thorpe@swansea.ac.uk**

@@ -18,7 +18,8 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     Parameters:
     input_file (string): Hopefully self explanitory, Our recomended (i.e. tested) format is Salome
     med. However, theortically any of the aprrox. 30 file formats suported by meshio will
-    work (see https://github.com/nschloe/meshio for the full list).
+    work. Provided they are using either tetrahedrons or triangles as there element type
+    (see https://github.com/nschloe/meshio for the full list).
 
     output_file (string): Filename for output as 8 bit greyscale tiff stack.
 
