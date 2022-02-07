@@ -2,6 +2,9 @@
 // XTENSOR Python
 #define FORCE_IMPORT_ARRAY                // numpy C api loading
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include <xtensor/xarray.hpp>
+#include <xtensor/xcontainer.hpp>
+#include <xtensor/xadapt.hpp>
 // Standard libs
 #include <string>
 #include <cstdio>
@@ -20,7 +23,7 @@ using namespace pybind11::literals;
 // Forward declaration of CUDA functions
 float* meshToGPU_thrust(const Mesh *mesh); // METHOD 3 to transfer triangles can be found in thrust_operations.cu(h)
 void cleanup_thrust();
-void voxelize(const voxinfo & v, float* triangle_data, unsigned int* vtable, bool useThrustPath, bool use_tetra, bool morton_code);
+void voxelize(const voxinfo & v, float* triangle_data, long* Greyscale, unsigned int* vtable, bool useThrustPath, unsigned short* result_ptr, bool use_tetra, bool morton_code);
 void voxelize_solid(const voxinfo& v, float* triangle_data, unsigned int* vtable, bool useThrustPath, bool morton_code);
 
 // Encode 3d data using morton code, this is a mathematically efficient way of storing 3D data in binary.
@@ -64,20 +67,19 @@ float* meshToGPU_managed_tri(const Mesh *mesh){
 	return device_triangles;
 }
 
-// Helper function to transfer tetrahedrons to automatically managed CUDA memory ( > CUDA 7.x)
 float* meshToGPU_managed_tets(const Mesh *mesh){
   Timer t; t.start();
   size_t n_floats = sizeof(float) * 12 * (mesh->Volume.shape(0));
   float* device_tets;
-  int tetra_verts[4];
+  int tet_verts[4];
   fprintf(stdout, "[Mesh] Allocating %s of CUDA-managed UNIFIED memory for tetrahedron data \n", (readableSize(n_floats)).c_str());
   checkCudaErrors(cudaMallocManaged((void**) &device_tets, n_floats)); // managed memory
   fprintf(stdout, "[Mesh] Copy %zu tetrahedrons to CUDA-managed UNIFIED memory \n", (size_t)(mesh->Volume.shape(0)));
   for (size_t i = 0; i < mesh->Volume.shape(0); i++) {
     
-	   // Extract the vertices that make up triangle i
+	   // Extract the vertices that make up tetrahedron i
     for (int K = 0; K < 4; K++){
-	    tetra_verts[K] = mesh->Volume(i,K);
+	    tet_verts[K] = mesh->Volume(i,K);
 	  }
 	  // get the xyz co-ordinates of each of those vertices as a glm vector
 	  glm::vec3 A = glm::vec3(0,0,0);
@@ -86,10 +88,10 @@ float* meshToGPU_managed_tets(const Mesh *mesh){
 	  glm::vec3 D = glm::vec3(0,0,0);
 	  
 	  for (int N = 0; N < 3; N++){
-	    A[N] = mesh->Vertices(tetra_verts[0],N);
-	    B[N] = mesh->Vertices(tetra_verts[1],N);
-	    C[N] = mesh->Vertices(tetra_verts[2],N);
-	    D[N] = mesh->Vertices(tetra_verts[3],N);
+	    A[N] = mesh->Vertices(tet_verts[0],N);
+	    B[N] = mesh->Vertices(tet_verts[1],N);
+	    C[N] = mesh->Vertices(tet_verts[2],N);
+	    D[N] = mesh->Vertices(tet_verts[3],N);
 	  }
 	  
 	  size_t j = i * 12;
@@ -101,6 +103,23 @@ float* meshToGPU_managed_tets(const Mesh *mesh){
 	t.stop();fprintf(stdout, "[Perf] Mesh transfer time to GPU: %.1f ms \n", t.elapsed_time_milliseconds);
 
 	return device_tets;
+}
+// Helper function to transfer Greyscale values to automatically managed CUDA memory ( > CUDA 7.x)
+long* GreyscaleToGPU_managed(const Mesh *mesh){
+  Timer t; t.start();
+  size_t n_floats = sizeof(long) * (mesh->Greyscale.shape(0));
+  long* device_Greyscale;
+  fprintf(stdout, "[Mesh] Allocating %s of CUDA-managed UNIFIED memory for Greyscasle data \n", (readableSize(n_floats)).c_str());
+  checkCudaErrors(cudaMallocManaged((void**) &device_Greyscale, n_floats)); // managed memory
+  fprintf(stdout, "[Mesh] Copy %zu Greyscale values to CUDA-managed UNIFIED memory \n", (size_t)(mesh->Greyscale.shape(0)));
+  
+  for (size_t i = 0; i < mesh->Greyscale.shape(0); i++) {
+    *(device_Greyscale+i) = mesh->Greyscale(i);
+	  }
+  
+	t.stop();fprintf(stdout, "[Perf] Greyscale transfer time to GPU: %.1f ms \n", t.elapsed_time_milliseconds);
+
+	return device_Greyscale;
 }
 
 // Function to take in the result array and write greyscale values to it. This is done in parallel on the CPU at present.
@@ -126,17 +145,20 @@ xt::pyarray<unsigned char> write_greyscale(xt::pyarray<unsigned char> result,vox
   return result;
 }
 
-xt::pyarray<unsigned char>run(xt::pyarray<long> Triangles, xt::pyarray<long> Tetra, xt::pyarray<long> Tags, xt::pyarray<float> Points,
+xt::pyarray<unsigned short> run(xt::pyarray<long> Triangles, xt::pyarray<long> Tetra, xt::pyarray<long> Greyscale, xt::pyarray<float> Points,
 		      xt::pyarray<float> Bbox_min, xt::pyarray<float> Bbox_max, unsigned int gridsize, bool useThrustPath = false,
 		      bool forceCPU = false, bool solid = true, bool use_tetra=true){
 
   	Timer t; t.start();
 	fprintf(stdout, "\n## PROGRAM PARAMETERS \n");
 	fflush(stdout);
-	xt::pyarray<unsigned char> result= xt::zeros<unsigned char>({gridsize,gridsize,gridsize});
+	xt::pyarray<unsigned short> result = xt::zeros<unsigned short>({gridsize,gridsize,gridsize});
+	//unsigned char* result_ptr = result.data(); // pointer to the start of the pyarray
+	unsigned short* result_ptr; // pointer to the start of the pyarray
+	size_t result_size = gridsize*gridsize*gridsize*sizeof(unsigned short);
 	fprintf(stdout, "\n## READ MESH \n");
 	
-        Mesh *themesh = new Mesh(Triangles,Tetra,Tags,Points);
+        Mesh *themesh = new Mesh(Triangles,Tetra,Greyscale,Points);
 	int num_elem;
 	// SECTION: Compute some information needed for voxelization (bounding box, unit vector, ...)
 	fprintf(stdout, "\n## VOXELISATION SETUP \n");
@@ -176,31 +198,51 @@ xt::pyarray<unsigned char>run(xt::pyarray<long> Triangles, xt::pyarray<long> Tet
 		fprintf(stdout, "\n## TRIANGLES TO GPU TRANSFER \n");
 
 		float* device_elements;
-		// Transfer triangles to GPU using either thrust or managed cuda memory
-		if (useThrustPath && use_tetra) { device_elements = meshToGPU_thrust(themesh); }
-		else { device_elements = meshToGPU_managed_tets(themesh); }
-		
-		if (useThrustPath && !use_tetra) { device_elements = meshToGPU_thrust(themesh); }
-		else { device_elements = meshToGPU_managed_tri(themesh); }
-
-		if (!useThrustPath) {
+		long* device_greyscale;
+		// Transfer triangles to GPU using either thrust or managed cuda memory. 
+        // Greyscale is curently only CUDA manage memory as it is much less data.
+		if (useThrustPath) { 
+            device_elements = meshToGPU_thrust(themesh);
+            device_greyscale = GreyscaleToGPU_managed(themesh);
+			// ALLOCATE MEMORY ON HOST
+			fprintf(stdout, "[Voxel Grid] Allocating %s kB of page-locked HOST memory for Voxel Grid\n",readableSize(vtable_size).c_str());
+			checkCudaErrors(cudaHostAlloc((void**)&vtable, vtable_size, cudaHostAllocDefault));
+            fprintf(stdout, "[Voxel Grid] Allocating %s of page-locked HOST memory for Result\n", readableSize(result_size).c_str());
+			checkCudaErrors(cudaHostAlloc((void**)&result_ptr, result_size, cudaHostAllocDefault));
+        }
+		else { // Use Managed Memory
+            if(use_tetra){
+                device_elements = meshToGPU_managed_tets(themesh);
+                device_greyscale = GreyscaleToGPU_managed(themesh);
+            }
+            else{
+                device_elements = meshToGPU_managed_tri(themesh);
+                device_greyscale = GreyscaleToGPU_managed(themesh); 
+            }
 			fprintf(stdout, "[Voxel Grid] Allocating %s of CUDA-managed UNIFIED memory for Voxel Grid\n", readableSize(vtable_size).c_str());
 			checkCudaErrors(cudaMallocManaged((void**)&vtable, vtable_size));
+            fprintf(stdout, "[Voxel Grid] Allocating %s of CUDA-managed UNIFIED memory for Result\n", readableSize(result_size).c_str());
+			checkCudaErrors(cudaMallocManaged((void**)&result_ptr, result_size));
 		}
-		else {
-			// ALLOCATE MEMORY ON HOST
-			fprintf(stdout, "[Voxel Grid] Allocating %s kB of page-locked HOST memory for Voxel Grid\n", readableSize(vtable_size).c_str());
-			checkCudaErrors(cudaHostAlloc((void**)&vtable, vtable_size, cudaHostAllocDefault));
+
+	fprintf(stdout, "\n## GPU VOXELISATION \n");
+	if (solid){
+		voxelize_solid(voxelization_info, device_elements, vtable, useThrustPath, use_morton_code);
+	}
+	else{
+		voxelize(voxelization_info, device_elements, device_greyscale, vtable, useThrustPath, result_ptr, use_tetra, use_morton_code);
+		  std::vector<std::size_t> shape = {gridsize,gridsize,gridsize};
+    result = xt::adapt(result_ptr, gridsize*gridsize*gridsize, xt::no_ownership(), shape);
+		  //		  for (int x = 0; x <= voxelization_info.gridsize.x; x++){
+		  //for (int y = 0; y <= voxelization_info.gridsize.y; y++){
+		  //  for (int z = 0; z <= voxelization_info.gridsize.z; z++){
+		  //	result(x,y,z)=*result_ptr+(x*y*z);
+		  //  }}}
+		    
 		}
-		fprintf(stdout, "\n## GPU VOXELISATION \n");
-		if (solid){
-			voxelize_solid(voxelization_info, device_elements, vtable, useThrustPath, use_morton_code);
-		}
-		else{
-		  voxelize(voxelization_info, device_elements, vtable, useThrustPath, use_tetra, use_morton_code);
-		}
+} //End of if GPU
 		//result = write_greyscale(result,vtable);
-	} else { 
+     else { 
 		// CPU VOXELIZATION FALLBACK
 		fprintf(stdout, "\n## CPU VOXELISATION \n");
 		if (!forceCPU) { fprintf(stdout, "[Info] No suitable CUDA GPU was found: Falling back to CPU voxelization\n"); }
@@ -219,6 +261,7 @@ xt::pyarray<unsigned char>run(xt::pyarray<long> Triangles, xt::pyarray<long> Tet
 		  fprintf(stdout, "[WARN] Using option solid to auto-fill surface data.\n");
 		  fprintf(stdout, "This option is quite slow and not very robust.\n Also custom greyscale values will be ignored.\n");
 		  cpu_voxelizer::cpu_voxelize_surface_solid(voxelization_info, themesh, vtable, use_morton_code);
+		  result= xt::zeros<unsigned char>({gridsize,gridsize,gridsize});
 		  result = write_greyscale(result, voxelization_info, vtable, themesh);
 		}
 	}
@@ -230,13 +273,13 @@ xt::pyarray<unsigned char>run(xt::pyarray<long> Triangles, xt::pyarray<long> Tet
 
 
 
-PYBIND11_MODULE(_CudaVox, m) {
+PYBIND11_MODULE(CudaVox, m) {
   
   xt::import_numpy();
     // Optional docstring
     m.doc() = "python  link into cudavox";
     m.def("run",&run,"function to perform the voxelization",
-	  "Triangles"_a, "Tetra"_a, "Tags"_a,
+	  "Triangles"_a, "Tetra"_a, "Greyscale"_a,
 	  "Points"_a, "Bbox_min"_a,
 	  "Bbox_max"_a,"gridsize"_a, "useThrustPath"_a = false,
 	  "forceCPU"_a = false, "solid"_a = false,
