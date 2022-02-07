@@ -188,5 +188,6 @@ FakesAssemblies/
 #CMAKE stuff
 CMakeFiles/*
 Makefile
-cad2vox.egg-info/*
+*.egg-info/*
 dist/*
+cad2vox/__pycache__/*
