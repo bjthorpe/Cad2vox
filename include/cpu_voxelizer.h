@@ -15,13 +15,13 @@ public:
 	//
     xt::pyarray<long> Surface;
     xt::pyarray<long> Volume;
-    xt::pyarray<long> Tags;
+    xt::pyarray<long> Greyscale;
     xt::pyarray<float> Vertices;
 // Constructor
-    Mesh(xt::pyarray<long> triangle, xt::pyarray<long> tetra, xt::pyarray<long> tags, xt::pyarray<float> Points){
+    Mesh(xt::pyarray<long> triangle, xt::pyarray<long> tetra, xt::pyarray<long> greyscale, xt::pyarray<float> Points){
         Surface = triangle;
         Volume = tetra;
-        Tags = tags;
+        Greyscale = greyscale;
         Vertices = Points;
 
 }

@@ -223,7 +223,7 @@ bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm
 #ifdef _DEBUG
 						debug_n_voxels_marked += 1;
 #endif
-						result(x,y,z) = themesh ->Tags(i);	
+						result(x,y,z) = themesh ->Greyscale(i);	
 						continue;
 					}
 				}
@@ -454,7 +454,7 @@ void  cpu_voxelize_surface_solid(voxinfo info, Mesh* themesh, unsigned int* voxe
 			      // check if point p is on the "correct" side of all 4 triangles and thus inside the tetrahedron.
 			      if(PointInTetrahedron(A,B,C,D,P))
 				{
-				  result(x,y,z) = themesh ->Tags(i);
+				  result(x,y,z) = themesh ->Greyscale(i);
 				  continue;
 				}
 			      else {
