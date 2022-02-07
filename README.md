@@ -16,7 +16,7 @@ The project has the following build dependencies:
  * [Nvidia Cuda 8.0 (or higher)](https://developer.nvidia.com/cuda-toolkit) for CUDA + Thrust libraries (standard included)
  * [GLM](http://glm.g-truc.net/0.9.8/index.html) for vector math. Any recent version will do.
  * [OpenMP](https://www.openmp.org/)
- * [Python] version 3.6 or higher.
+ * [Python](https://www.python.org/) version 3.6 or higher.
  
  You will also need the following python packages:
  * cmake
@@ -29,7 +29,7 @@ The project has the following build dependencies:
  * meshio
  * pytest
 
-We recommend using anaconda as they are all available and can be installed with the following two commands.
+We recommend using [anaconda](https://anaconda.org/) as they are all available through the conda package manager and can be installed with the following two commands.
 
 ```bash
 conda install cmake numpy pybind11 tifffile
