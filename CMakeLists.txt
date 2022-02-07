@@ -26,13 +26,13 @@ file (GLOB HEADER_FILES "src/*.hpp")
 file (GLOB PYTHON_FILES "cad2vox/python_bind.cpp" "cad2vox/*.hpp")
 
 find_package(pybind11 REQUIRED)
-pybind11_add_module(_CudaVox
+pybind11_add_module(CudaVox
 	${CUDA_VOXELIZER_SRCS}
     ${CUDA_VOXELIZER_SRCS_CU}
 	${PYTHON_FILES}
 )
 
-TARGET_LINK_LIBRARIES(_CudaVox PRIVATE OpenMP::OpenMP_CXX PRIVATE CUDA::cudart PRIVATE glm::glm PRIVATE xtensor)
-target_include_directories(_CudaVox PUBLIC ${XTL_INCLUDE_DIRS} PUBLIC "include")
-set_property(TARGET _CudaVox PROPERTY CUDA_ARCHITECTURES 70 72 75 80)
+TARGET_LINK_LIBRARIES(CudaVox PRIVATE OpenMP::OpenMP_CXX PRIVATE CUDA::cudart PRIVATE glm::glm PRIVATE xtensor)
+target_include_directories(CudaVox PUBLIC ${XTL_INCLUDE_DIRS} PUBLIC "include")
+set_property(TARGET CudaVox PROPERTY CUDA_ARCHITECTURES 70 72 75 80)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)

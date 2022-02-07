@@ -5,7 +5,7 @@ import sys
 import sysconfig
 import platform
 import subprocess
-
+import numpy
 from distutils.version import LooseVersion
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
@@ -14,7 +14,7 @@ from setuptools.command.build_ext import build_ext
 Modified from https://www.benjack.io/2017/06/12/python-cpp-tests.html
 '''
 class CMakeExtension(Extension):
-    def __init__(self, name, sourcedir=''):
+    def __init__(self, name, sourcedir='',sources=[]):
         Extension.__init__(self, name, sources=[])
         self.sourcedir = os.path.abspath(sourcedir)
 
@@ -57,7 +57,7 @@ class CMakeBuild(build_ext):
         else:
             cmake_args += ['-DCMAKE_BUILD_TYPE=' + cfg]
             build_args += ['--', '-j2']
-
+        cmake_args += ['-DNUMPY_DIR=' + numpy.get_include()]
         env = os.environ.copy()
         env['CXXFLAGS'] = '{} -DVERSION_INFO=\\"{}\\"'.format(
             env.get('CXXFLAGS', ''),
@@ -73,21 +73,21 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 setup(
-    name="cad2vox",
+    name="CudaVox",
     version="1.0.0",
     author="Ben Thorpe",
     author_email="b.j.thorpe@swansea.ac.uk",
-    description="An automated trading package",
+    description="Python bindings for a C++ library to convert mesh models into Voxel images with OpenMp and CUDA",
     long_description=long_description,
     long_description_content_type="text/markdown",
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: POSIX :: Linux"
     ],
-    ext_modules=[CMakeExtension('cad2vox._CudaVox')],
+    include_dirs=[numpy.get_include()],
+    ext_modules=[CMakeExtension('CudaVox',sources=["src/python_bind.cpp"])],
     python_requires='>=3.6',
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,
     install_requires=['numpy>=1.18','meshio'],
-    packages=['cad2vox']
 )

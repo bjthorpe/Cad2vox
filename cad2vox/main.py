@@ -7,7 +7,6 @@ import numpy as np
 import tifffile as tf
 import meshio
 from CudaVox import run
-from .utill import check_greyscale,find_the_key,check_voxinfo
 
 def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-1.0,use_tetra=True,
              cpu=False,solid=False):

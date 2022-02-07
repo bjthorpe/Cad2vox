@@ -1,3 +1,4 @@
 """Root module of your package"""
-from .cad2vox import Voxelise
-from cad2vox._CudaVox import run
+from .main import voxelise
+from .utill import check_greyscale,find_the_key,check_voxinfo
+from CudaVox import run
