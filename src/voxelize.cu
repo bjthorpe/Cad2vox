@@ -45,6 +45,19 @@ __device__ size_t debug_d_n_voxels_tested = 0;
 //	return ((voxel_table[int_location]) & (1 << bit_pos));
 //}
 
+// readablesizestrings
+//__device__ inline std::string readableSize(size_t bytes) {
+//	double bytes_d = static_cast<double>(bytes);
+//	std::string r;
+//	if (bytes_d <= 0) r = "0 Bytes";
+//	else if (bytes_d >= 1099511627776.0) r = std::to_string(static_cast<size_t>(bytes_d / 1099511627776.0)) + " TB";
+//	else if (bytes_d >= 1073741824.0) r = std::to_string(static_cast<size_t>(bytes_d / 1073741824.0)) + " GB";
+//	else if (bytes_d >= 1048576.0) r = std::to_string(static_cast<size_t>(bytes_d / 1048576.0)) + " MB";
+//	else if (bytes_d >= 1024.0) r = std::to_string(static_cast<size_t>(bytes_d / 1024.0)) + " KB";
+//	else r = std::to_string(static_cast<size_t>(bytes_d)) + " bytes";
+//	return r;
+// };
+
 // Set a bit in the giant voxel table. This involves doing an atomic operation on a 32-bit word in memory.
 // Blocking other threads writing to it for a very short time
 __device__ __inline__ void setBit(unsigned int* voxel_table, size_t index){
@@ -84,7 +97,7 @@ __device__ bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::
 
 
 // Main triangle voxelization method
-__global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned int* voxel_table, bool morton_order){
+__global__ void voxelize_triangle(voxinfo info, float* triangle_data, long* greyscale_data, unsigned int* voxel_table, unsigned short* result, bool morton_order){
 	size_t thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 	size_t stride = blockDim.x * gridDim.x;
 
@@ -94,7 +107,7 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 
 	while (thread_id < info.n_triangles){ // every thread works on specific triangles in its stride
 		size_t t = thread_id * 9; // triangle contains 9 vertices
-
+        size_t tri_index = size_t(t/9);
 		// COMPUTE COMMON TRIANGLE PROPERTIES
 		// Move vertices to origin using bbox
 		glm::vec3 v0 = glm::vec3(triangle_data[t], triangle_data[t + 1], triangle_data[t + 2]) - info.bbox.min;
@@ -204,6 +217,7 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 					} else {
 						size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y)* static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z)* static_cast<size_t>(info.gridsize.y)* static_cast<size_t>(info.gridsize.z));
 						setBit(voxel_table, location);
+                        result[location] = static_cast<unsigned short>(greyscale_data[tri_index]);
 					}
 					continue;
 				}
@@ -217,7 +231,7 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 }
 
 // Main tetrahedron voxelization method
-__global__ void voxelize_tetra(voxinfo info, float* tet_data, unsigned int* voxel_table, bool morton_order){
+__global__ void voxelize_tetra(voxinfo info, float* tet_data, long* greyscale_data, unsigned int* voxel_table, unsigned short* result, bool morton_order){
 	size_t thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 	size_t stride = blockDim.x * gridDim.x;
 
@@ -227,7 +241,7 @@ __global__ void voxelize_tetra(voxinfo info, float* tet_data, unsigned int* voxe
 
 	while (thread_id < info.n_triangles){ // every thread works on specific tetrahedron in its stride
 		size_t t = thread_id * 12; // tetrahedron contains 12 vertices
-
+        size_t tri_index = size_t(t/12);
 		// COMPUTE COMMON TET PROPERTIES
 		// Move vertices to origin using bbox
 		glm::vec3 A = glm::vec3(tet_data[t], tet_data[t + 1], tet_data[t + 2]) - info.bbox.min;
@@ -261,6 +275,7 @@ __global__ void voxelize_tetra(voxinfo info, float* tet_data, unsigned int* voxe
 					} else {
 						size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y)* static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z)* static_cast<size_t>(info.gridsize.y)* static_cast<size_t>(info.gridsize.z));
 						setBit(voxel_table, location);
+                        result[location] = static_cast<unsigned short>(greyscale_data[tri_index]);
 					}
 					continue;
 				    }
@@ -271,13 +286,15 @@ __global__ void voxelize_tetra(voxinfo info, float* tet_data, unsigned int* voxe
 }
 }
 
-void voxelize(const voxinfo& v, float* element_data, unsigned int* vtable, bool useThrustPath, bool use_tetra, bool morton_code) {
+void voxelize(const voxinfo& v, float* element_data, long* greyscale_data, unsigned int* vtable, bool useThrustPath, unsigned short* result_array, bool use_tetra, bool morton_code) {
 	float elapsedTime;
 
 	// These are only used when we're not using UNIFIED memory
 	unsigned int* dev_vtable; // DEVICE pointer to voxel_data
+    unsigned short* dev_result; // DEVICE pointer to voxel_data
 	size_t vtable_size; // vtable size
-	
+	size_t result_size; // result size
+
 	// Create timers, set start time
 	cudaEvent_t start_vox, stop_vox;
 	checkCudaErrors(cudaEventCreate(&start_vox));
@@ -300,18 +317,25 @@ void voxelize(const voxinfo& v, float* element_data, unsigned int* vtable, bool 
 
 	if (useThrustPath) { // We're not using UNIFIED memory
 		vtable_size = ((size_t)v.gridsize.x * v.gridsize.y * v.gridsize.z) / (size_t) 8.0;
-		fprintf(stdout, "[Voxel Grid] Allocating %llu kB of DEVICE memory for Voxel Grid\n", size_t(vtable_size / 1024.0f));
+        result_size = ((size_t)v.gridsize.x * v.gridsize.y * v.gridsize.z)*sizeof(unsigned short);
+
+		fprintf(stdout, "[Voxel Grid] Allocating %s of DEVICE memory for Voxel Grid\n", readableSize(vtable_size).c_str());
 		checkCudaErrors(cudaMalloc(&dev_vtable, vtable_size));
 		checkCudaErrors(cudaMemset(dev_vtable, 0, vtable_size));
+
+        fprintf(stdout, "[Voxel Grid] Allocating %s of DEVICE memory for Result\n", readableSize(result_size).c_str());
+        checkCudaErrors(cudaMalloc(&dev_result, result_size));
+		checkCudaErrors(cudaMemset(dev_result, 0, result_size));
+
 		// Start voxelization
 		checkCudaErrors(cudaEventRecord(start_vox, 0));
-    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, dev_vtable, morton_code);}
-	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, dev_vtable, morton_code);}
+    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, greyscale_data, dev_vtable, dev_result, morton_code);}
+	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, greyscale_data, dev_vtable, dev_result, morton_code);}
 	}
 	else { // UNIFIED MEMORY 
 		checkCudaErrors(cudaEventRecord(start_vox, 0));
-    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, vtable, morton_code);}
-	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, vtable, morton_code);}
+    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, greyscale_data, vtable, result_array, morton_code);}
+	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, greyscale_data, vtable, result_array, morton_code);}
 	}
 
 	cudaDeviceSynchronize();
@@ -322,10 +346,14 @@ void voxelize(const voxinfo& v, float* element_data, unsigned int* vtable, bool 
 
 	// If we're not using UNIFIED memory, copy the voxel table back and free all
 	if (useThrustPath){
-		fprintf(stdout, "[Voxel Grid] Copying %llu kB to page-locked HOST memory\n", size_t(vtable_size / 1024.0f));
+		fprintf(stdout, "[Voxel Grid] Copying %s to page-locked HOST memory\n", readableSize(vtable_size).c_str());
 		checkCudaErrors(cudaMemcpy((void*)vtable, dev_vtable, vtable_size, cudaMemcpyDefault));
-		fprintf(stdout, "[Voxel Grid] Freeing %llu kB of DEVICE memory\n", size_t(vtable_size / 1024.0f));
+        fprintf(stdout, "[Voxel Grid] Copying %s to page-locked HOST memory\n", readableSize(result_size).c_str());
+		checkCudaErrors(cudaMemcpy((void*)result_array, dev_result, result_size, cudaMemcpyDefault));
+		fprintf(stdout, "[Voxel Grid] Freeing %s of DEVICE memory\n", readableSize(vtable_size).c_str());
 		checkCudaErrors(cudaFree(dev_vtable));
+        fprintf(stdout, "[Voxel Grid] Freeing %s of DEVICE memory\n", readableSize(result_size).c_str());
+		checkCudaErrors(cudaFree(dev_result));
 	}
 
 	// SANITY CHECKS
@@ -334,9 +362,9 @@ void voxelize(const voxinfo& v, float* element_data, unsigned int* vtable, bool 
 	checkCudaErrors(cudaMemcpyFromSymbol((void*)&(debug_n_triangles),debug_d_n_triangles, sizeof(debug_d_n_triangles), 0, cudaMemcpyDeviceToHost));
 	checkCudaErrors(cudaMemcpyFromSymbol((void*)&(debug_n_voxels_marked), debug_d_n_voxels_marked, sizeof(debug_d_n_voxels_marked), 0, cudaMemcpyDeviceToHost));
 	checkCudaErrors(cudaMemcpyFromSymbol((void*) & (debug_n_voxels_tested), debug_d_n_voxels_tested, sizeof(debug_d_n_voxels_tested), 0, cudaMemcpyDeviceToHost));
-	printf("[Debug] Processed %llu triangles on the GPU \n", debug_n_triangles);
-	printf("[Debug] Tested %llu voxels for overlap on GPU \n", debug_n_voxels_tested);
-	printf("[Debug] Marked %llu voxels as filled (includes duplicates!) \n", debug_n_voxels_marked);
+	printf("[Debug] Processed %zu triangles on the GPU \n", debug_n_triangles);
+	printf("[Debug] Tested %zu voxels for overlap on GPU \n", debug_n_voxels_tested);
+	printf("[Debug] Marked %zu voxels as filled (includes duplicates!) \n", debug_n_voxels_marked);
 #endif
 
 	// Destroy timers
