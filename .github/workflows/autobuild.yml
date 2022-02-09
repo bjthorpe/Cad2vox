@@ -42,11 +42,11 @@ jobs:
     - name: Build xtl, xtensor and xtensor-python
       run: |
         git clone https://github.com/xtensor-stack/xtl.git
-        cd xtl && .$HOME/cmake --prefix="$HOME"/cmake && make install && cd ..
+        cd xtl && cmake --prefix="$HOME"/cmake && make install && cd ..
         git clone https://github.com/xtensor-stack/xtensor.git
-        cd xtensor && .$HOME/cmake --prefix="$HOME"/cmake && make install && cd ..
-        git clone https://github.com/xtensor-python/xtensor-python.git
-        cd xtensor-python && .$HOME/cmake && make install && cd ...
+        cd xtensor && cmake --prefix="$HOME"/cmake && make install && cd ..
+        git clone https://github.com/xtensor-stack/xtensor-python.git
+        cd xtensor-python && cmake --prefix="$HOME"/cmake && make install && cd ...
 
     - name: Install pip packages
       run: |
