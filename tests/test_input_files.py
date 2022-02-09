@@ -1,0 +1,104 @@
+""" Various sanity tests to check that files are read and handled corectly."""
+import pytest
+import cad2vox
+import meshio
+import os
+import tifffile as tf
+import numpy as np
+from CudaVox import Check_CUDA
+
+# use the test case folder as their working directory
+@pytest.fixture(autouse=True)
+def change_test_dir(request, monkeypatch):
+    monkeypatch.chdir(request.fspath.dirname)
+
+@pytest.fixture()
+def cleanup():
+    print("Starting Pytest")
+    yield
+    print("performing cleanup of output")
+    if os.path.exists("greyscale.csv"):
+        os.remove("greyscale.csv")
+
+############ tests for inputfile
+
+def test_filename_not_string():
+    # Test non-string gives error
+    with pytest.raises(TypeError):
+        filename = 6
+        cad2vox.voxelise(filename,"AMAZE_Sample.tiff",gridsize = 100)
+    assert TypeError
+
+def test_filename_not_exist():
+# give an input file that does not exist
+    filename = "I-dont-exist.med"
+    with pytest.raises(meshio._exceptions.ReadError):
+        cad2vox.voxelise(filename,"AMAZE_Sample.tiff",gridsize = 100)
+    
+    assert meshio._exceptions.ReadError
+
+def test_no_Tertahedrons(cleanup):
+    # Sphere.stl only has triangle data so should fail only if we set use_tetra
+    # This also techinally tests no material data as stl files dont have that.
+    cad2vox.voxelise("inputs/Sphere.stl","outputs/Sphere.tiff",gridsize = 100)
+    os.remove('outputs/Sphere.tiff')
+
+def test_no_Tertahedrons_use_tetra(cleanup):
+    # Sphere.stl only has triangle data so should fail if we set use_tetra
+    with pytest.raises(ValueError):
+        cad2vox.voxelise("inputs/Sphere.stl","outputs/Sphere.tiff",gridsize = 100,use_tetra=True)
+    
+    assert  ValueError
+
+def test_no_mat_data(cleanup):
+    # Sphere.med has no material data defined so should produce a tiff stack
+    # containing only two values 0 and 255.
+    cad2vox.voxelise("inputs/Sphere.med","outputs/Sphere_nomats.tiff",gridsize = 100)
+    # read back in the output as an np array
+    output = tf.imread('outputs/Sphere_nomats.tiff')
+    os.remove('outputs/Sphere_nomats.tiff')
+    #check the tiff stack contains only 0 and 255
+    assert np.all([np.any(output == value) for value in np.sort([0,255])])
+
+############## Tests for Greyscale files
+def test_greyscale_not_exist():
+# give a greyscale file that does not exist
+    with pytest.raises(FileNotFoundError):
+        cad2vox.voxelise("inputs/AMAZE_Sample.med","outputs/Sphere.tiff",
+        greyscale_file="I-dont-exist.csv",gridsize = 100)
+    
+    assert  FileNotFoundError
+
+def test_generate_greyscale_file(cleanup):
+# test if greyscale.csv file is auto-generated if None given
+
+    cad2vox.voxelise("inputs/AMAZE_Sample.med","outputs/AMAZE_Sample.tiff",gridsize = 100)
+    os.remove('outputs/AMAZE_Sample.tiff')
+    assert os.path.exists("greyscale.csv")
+
+def test_greyscale_non_8_bit():
+    filename = "inputs/invalid_greyscale_range.csv"
+    # one greyscale value in this file exceeds 255 so is not a valid 8 bit number
+    with pytest.raises(ValueError):
+        cad2vox.voxelise("inputs/AMAZE_Sample.med","outputs/Sphere.tiff",
+        greyscale_file=filename,gridsize = 100)
+    
+    assert  ValueError
+
+
+def test_vaild_greyscale_float(cleanup):
+    filename = "inputs/valid_greyscale_float.csv"
+    # greyscale values in this file are floats which are valid as they can be cast as an int
+    cad2vox.voxelise("inputs/AMAZE_Sample.med","outputs/AMAZE_Sample.tiff",
+    greyscale_file=filename,gridsize = 100)
+    os.remove('outputs/AMAZE_Sample.tiff')
+ 
+def test_invalid_greyscale_string():
+    filename = "inputs/invalid_greyscale_string.csv"
+    # one greyscale value in this file is the string 25o which is
+    # invalid as it can't be cast as an int
+    with pytest.raises(ValueError):
+        cad2vox.voxelise("inputs/AMAZE_Sample.med","outputs/Sphere.tiff",
+        greyscale_file=filename,gridsize = 100)
+    
+    assert  ValueError

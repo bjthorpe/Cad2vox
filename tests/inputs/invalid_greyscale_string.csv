@@ -1,0 +1,19 @@
+Material Name,index,Greyscale Value
+ContactBP_double,-26,14
+ContactTB_double,-25,28
+BlockBottom BlockExternal SampleSurface,-24,42
+BlockExternal BlockSideB SampleSurface,-23,56
+BlockExternal BlockSideA SampleSurface,-22,70
+BlockBack BlockExternal SampleSurface,-21,85
+BlockExternal BlockFront SampleSurface,-20,99
+CoilFace SampleSurface TileExternal TileTop,-19,113
+SampleSurface TileExternal TileSideB,-18,127
+SampleSurface TileExternal TileSideA,-17,141
+SampleSurface TileBack TileExternal,-16,255
+SampleSurface TileExternal TileFront,-15,170
+BlockExternal SampleSurface,-14,184
+ContactBP,-13,198
+ContactTB,-12,212
+PipeOut SampleSurface,-11,226
+PipeIn SampleSurface,-10,240
+PipeFace SampleSurface,-9,"25o"
