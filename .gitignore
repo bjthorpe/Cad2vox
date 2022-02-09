@@ -191,3 +191,4 @@ Makefile
 *.egg-info/*
 dist/*
 cad2vox/__pycache__/*
+tests/__pycache__/*
