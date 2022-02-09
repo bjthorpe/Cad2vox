@@ -3,11 +3,15 @@ import numpy as np
 #check if greyscale can be converted into a vaild 8-bit int
 def check_greyscale(greyscale_value):
     """ Function to check the user defined Greyscale values are valid 8-bit integers"""
-    if not greyscale_value.isdigit():
+    try:
+        int(greyscale_value)
+    except ValueError:
         print(greyscale_value)
-        raise TypeError("Invalid Greyscale value, must be an Integer value")
+        raise ValueError("Invalid Greyscale value, must be an Integer value, "
+        "or castable to and Integer value")
+
     if ((int(greyscale_value) < 0) or (int(greyscale_value) >255)):
-        raise TypeError("Invalid Greyscale value. Must be between 0 and 255")
+        raise ValueError("Invalid Greyscale value. Must be between 0 and 255")
 
 def find_the_key(dictionary, target_keys):
     """Function to pull out the keys of a dictionary as a list."""
@@ -37,7 +41,7 @@ def check_voxinfo(unit_length,gridsize,gridmin,gridmax):
 
     Note: the calculation of unit_length is in reality handled deep in the C++
     code. This is because the code incorporates a small displacement to the grid
-    "epsilon" to try and avoid vertices falling directly on the grid 
+    "epsilon" to try and avoid vertices falling directly on the grid
     (see "util.h" line 98). Thus this function is a bit of a hack in that it
     always returns just the gridsize. Either the user supplied value
     (assuming it is valid) or the calculated value from the unit length.

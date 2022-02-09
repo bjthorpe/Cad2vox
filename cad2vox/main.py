@@ -7,8 +7,12 @@ import numpy as np
 import tifffile as tf
 import meshio
 from CudaVox import run
+import pandas as pd
+from .utill import check_greyscale,find_the_key,check_voxinfo
 
-def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-1.0,use_tetra=True,
+
+
+def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-1.0,use_tetra=False,
              cpu=False,solid=False):
     """
 
@@ -42,8 +46,8 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     in the event that you have multiple element types defined in the same file. Normally the code
     defaults to triangles however this flag overides that.
 
-    cpu (bool): Flag to ignore any CUDA capible GPUS and instead use the OpenMp implementation. 
-    By default the code will first check for GPUS and only use OpenMP as a fallback. This flag 
+    cpu (bool): Flag to ignore any CUDA capible GPUS and instead use the OpenMp implementation.
+    By default the code will first check for GPUS and only use OpenMP as a fallback. This flag
     overrides that and forces the use of OpenMP.
 
     Solid (bool): This Flag can be set if you want to auto-fill the interior when using a Surface
@@ -65,8 +69,8 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     issue either message b.j.thorpe@swansea.ac.uk or raise an issue on git repo as they can easily
     be fixed and incorporated into a future release.
     """
-
     # read in data from file
+    input_file = os.path.abspath(input_file)
     mesh = meshio.read(input_file)
     # read in data from file
     mesh = meshio.read(input_file)
@@ -76,23 +80,50 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     triangles = mesh.get_cells_type('triangle')
     tetra = mesh.get_cells_type('tetra')
 
-    # extract dict of material names and integer tags
-    all_mat_tags=mesh.cell_tags
+    if (not np.any(triangles) and not np.any(tetra)):
+        raise ValueError("Input file must contain one of either Tets or Triangles")
 
+    if not np.any(triangles) and not use_tetra:
+        #no triangle data but trying to use triangles
+        raise ValueError("User asked to use triangles but input file does "
+        "not contain Triangle data")
+
+    if not np.any(tetra) and use_tetra:
+        #no tetra data but trying to use tets
+        raise ValueError("User asked to use tets but file does not contain Tetrahedron data")
+
+    # extract dict of material names and integer tags
+    try:
+        all_mat_tags=mesh.cell_tags
+    except AttributeError:
+        all_mat_tags = {}
+    if not all_mat_tags:
+        print ("[WARN] No materials defined so using default greyscale values.")
+        if use_tetra:
+            greyscale_array = np.full((1,np.shape(tetra)[0]), 255, dtype=int)
+        else:
+            greyscale_array = np.full((1,np.shape(triangles)[0]), 255, dtype=int)
+    else:
 # pull the dictionary containing material id's for the elemnt type (either triangles or tets)
 # and the np array of ints that label the material in each element.
-    if use_tetra:
-        mat_ids = mesh.get_cell_data('cell_tags','tetra')
-        mat_tag_dict = find_the_key(all_mat_tags, np.unique(mat_ids))
-    else:
-        mat_ids = mesh.get_cell_data('cell_tags','triangle')
-        mat_tag_dict = find_the_key(all_mat_tags, np.unique(mat_ids))
+        if use_tetra:
+            mat_ids = mesh.get_cell_data('cell_tags','tetra')
+            mat_tag_dict = find_the_key(all_mat_tags, np.unique(mat_ids))
+        else:
+            mat_ids = mesh.get_cell_data('cell_tags','triangle')
+            mat_tag_dict = find_the_key(all_mat_tags, np.unique(mat_ids))
 
-    if greyscale_file is None:
-        print("No Greyscale values given so they will be auto generated")
-        greyscale_array = generate_greyscale(mat_tag_dict,mat_ids)
-    else:
-        greyscale_array = read_greyscale_file(greyscale_file,mat_ids)
+        if greyscale_file is None:
+            #no file given so check if default file exists
+            if os.path.exists("greyscale.csv"):
+                greyscale_array = read_greyscale_file(os.path.abspath("greyscale.csv"),mat_ids)
+            else:
+                print("No Greyscale values given so they will be auto generated")
+                greyscale_array = generate_greyscale(mat_tag_dict,mat_ids)
+        else:
+
+            greyscale_file = os.path.abspath(greyscale_file)
+            greyscale_array = read_greyscale_file(greyscale_file,mat_ids)
     #define boundray box for mesh
     mesh_min_corner = np.array([np.min(points[:,0]), np.min(points[:,1]), np.min(points[:,2])])
     mesh_max_corner = np.array([np.max(points[:,0]), np.max(points[:,1]), np.max(points[:,2])])
@@ -131,22 +162,20 @@ def generate_greyscale(mat_tags,mat_ids):
 
 def read_greyscale_file(greyscale_file,mat_ids):
     """ Function to Read Greyscale values from file if a file is defined by the user."""
-    if not exists(greyscale_file):
+    greyscale_file = os.path.abspath(greyscale_file)
 
+    if not exists(greyscale_file):
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), greyscale_file)
 
-    with open(greyscale_file, 'r',encoding='UTF-8') as file:
-        print("reading greyscale values from "+ greyscale_file)
-        csv_reader = csv.DictReader(file)
-        greyscale_values = []
-        mat_index = []
-        for i,row in enumerate(csv_reader):
-        #checking the data that is being read in
-            check_greyscale(row["Greyscale Value"])
-            mat_index.append(int(row["index"]))
-            greyscale_values.append(int(row["Greyscale Value"]))
+    print("reading greyscale values from "+ greyscale_file)
+    df = pd.read_csv(greyscale_file)
 
-    print(mat_index)
+    for i,row in enumerate(df["Greyscale Value"]):
+        #checking the data that is being read in
+        check_greyscale(row)
+    mat_index = df["index"].values
+    greyscale_values = df["Greyscale Value"].values
+
     #replace the material tag in the array with its the integer greyscale value
     for i,tag in enumerate(mat_index):
         mat_ids[mat_ids==tag] = greyscale_values[i]
