@@ -122,6 +122,14 @@ long* GreyscaleToGPU_managed(const Mesh *mesh){
 	return device_Greyscale;
 }
 
+//Function to try to figure out if we have a CUDA-enabled GPU
+bool Check_CUDA(){
+  fprintf(stdout, "\n## CUDA INIT \n");
+  bool cuda_ok = initCuda();
+  cuda_ok ? fprintf(stdout, "[Info] CUDA GPU found\n") : fprintf(stdout, "[Info] CUDA GPU not found\n");
+  return cuda_ok;
+}
+
 // Function to take in the result array and write greyscale values to it. This is done in parallel on the CPU at present.
 xt::pyarray<unsigned char> write_greyscale(xt::pyarray<unsigned char> result,voxinfo info, unsigned int* vtable, Mesh* themesh){
 
@@ -186,10 +194,7 @@ xt::pyarray<unsigned short> run(xt::pyarray<long> Triangles, xt::pyarray<long> T
 	bool cuda_ok = false;
 	if (!forceCPU)
 	{
-		// SECTION: Try to figure out if we have a CUDA-enabled GPU
-		fprintf(stdout, "\n## CUDA INIT \n");
-		cuda_ok = initCuda();
-		cuda_ok ? fprintf(stdout, "[Info] CUDA GPU found\n") : fprintf(stdout, "[Info] CUDA GPU not found\n");
+	  cuda_ok = Check_CUDA();
 	}
 
 	// SECTION: The actual voxelization
@@ -271,17 +276,17 @@ xt::pyarray<unsigned short> run(xt::pyarray<long> Triangles, xt::pyarray<long> T
 	return result;
 }
 
-
-
 PYBIND11_MODULE(CudaVox, m) {
   
   xt::import_numpy();
     // Optional docstring
-    m.doc() = "python  link into cudavox";
+    m.doc() = "python  link into CudaVox";
     m.def("run",&run,"function to perform the voxelization",
 	  "Triangles"_a, "Tetra"_a, "Greyscale"_a,
 	  "Points"_a, "Bbox_min"_a,
 	  "Bbox_max"_a,"gridsize"_a, "useThrustPath"_a = false,
 	  "forceCPU"_a = false, "solid"_a = false,
 	  "use_tetra"_a =true);
+
+    m.def("Check_CUDA",&Check_CUDA,"function to check if a CUDA GPU is present.");
 }
