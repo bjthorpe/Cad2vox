@@ -1,5 +1,5 @@
 ## Details
-Cad2vox and CudaVox are Python packages to efficiently perform mesh voxelisation on GPU (using CUDA) or CPU (using OpenMP) for surface and volume cad meshes based on triangles and tetrahedrons respectively.
+Cad2Vox and CudaVox are Python packages to efficiently perform mesh voxelisation on GPU (using CUDA) or CPU (using OpenMP) for surface and volume cad meshes based on triangles and tetrahedrons respectively.
 
 The code itself consists of two Python packages. CudaVox a python package built from the c++ code using pybind11 and cad2vox which is a pure python package that reads in and wrangles the mesh/greyscale data using meshio and acts as a user interface to Cudavox.
 
@@ -16,7 +16,7 @@ The project has the following build dependencies:
  * [Nvidia Cuda 8.0 (or higher)](https://developer.nvidia.com/cuda-toolkit) for CUDA + Thrust libraries (standard included)
  * [GLM](http://glm.g-truc.net/0.9.8/index.html) for vector math. Any recent version will do.
  * [OpenMP](https://www.openmp.org/)
- * [Python] version 3.6 or higher.
+ * [Python](https://www.python.org/) version 3.6 or higher.
  
  You will also need the following python packages:
  * cmake
@@ -29,7 +29,7 @@ The project has the following build dependencies:
  * meshio
  * pytest
 
-We recommend using anaconda as they are all available and can be installed with the following two commands.
+We recommend using [anaconda](https://anaconda.org/) as they are all available through the conda package manager and can be installed with the following two commands.
 
 ```bash
 conda install cmake numpy pybind11 tifffile
@@ -43,9 +43,9 @@ pip install -r requirements.txt
 ```
 You will however, need to build xtl, xtensor and xtensor-python from source using cmake. Instructions for which can be found here:
 
-*[Xtl](https://github.com/xtensor-stack/xtl)
-*[Xtensor](https://github.com/xtensor-stack/xtensor)
-*[Xtensor-python](https://github.com/xtensor-stack/xtensor-python)
+* [Xtl](https://github.com/xtensor-stack/xtl)
+* [Xtensor](https://github.com/xtensor-stack/xtensor)
+* [Xtensor-python](https://github.com/xtensor-stack/xtensor-python)
 
 Once you have the dependencies installed you can use the setup.py scripts to build and install the two packages as:
 
@@ -57,7 +57,7 @@ python3 setup_cad2vox.py install
 
 ## Usage
 
-The main user facing function from cad2vox is voxelise. The following can be viewed at anytime through python by calling:
+The main user facing function from Cad2Vox is voxelise. The following can be viewed at anytime through python by calling:
 
 ```python
 import cad2vox
@@ -126,4 +126,4 @@ title = "Cad2Vox",
 howpublished = "\url{https://github.com/bjthorpe/Cad2vox}",
 year = "2022"}
 </pre>
-If you end up using cuda_voxelizer in something cool, drop me an e-mail: **b,.j.thorpe@swansea.ac.uk**
+If you end up using Cad2Vox in something cool, drop me an e-mail: **b,.j.thorpe@swansea.ac.uk**
