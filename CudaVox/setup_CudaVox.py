@@ -69,7 +69,7 @@ class CMakeBuild(build_ext):
         subprocess.check_call(['cmake', '--build', '.'] + build_args,
                               cwd=self.build_temp)
 
-with open("README.md", "r") as f:
+with open("../README.md", "r") as f:
     long_description = f.read()
 
 setup(
@@ -85,7 +85,7 @@ setup(
         "Operating System :: POSIX :: Linux"
     ],
     include_dirs=[numpy.get_include()],
-    ext_modules=[CMakeExtension('CudaVox',sources=["src/python_bind.cpp"])],
+    ext_modules=[CMakeExtension('CudaVox',sources=["python_bind.cpp"])],
     python_requires='>=3.6',
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,

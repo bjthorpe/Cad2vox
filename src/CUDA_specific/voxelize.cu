@@ -97,7 +97,7 @@ __device__ bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::
 
 
 // Main triangle voxelization method
-__global__ void voxelize_triangle(voxinfo info, float* triangle_data, long* greyscale_data, unsigned int* voxel_table, unsigned short* result, bool morton_order){
+__global__ void voxelize_triangle(voxinfo info, float* triangle_data, long* greyscale_data, unsigned int* voxel_table, unsigned short* result){
 	size_t thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 	size_t stride = blockDim.x * gridDim.x;
 
@@ -211,14 +211,9 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, long* grey
 					atomicAdd(&debug_d_n_voxels_marked, 1);
 #endif
 
-					if (morton_order){
-						size_t location = mortonEncode_LUT(x, y, z);
-						setBit(voxel_table, location);
-					} else {
 						size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y)* static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z)* static_cast<size_t>(info.gridsize.y)* static_cast<size_t>(info.gridsize.z));
 						setBit(voxel_table, location);
                         result[location] = static_cast<unsigned short>(greyscale_data[tri_index]);
-					}
 					continue;
 				}
 			}
@@ -231,7 +226,7 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, long* grey
 }
 
 // Main tetrahedron voxelization method
-__global__ void voxelize_tetra(voxinfo info, float* tet_data, long* greyscale_data, unsigned int* voxel_table, unsigned short* result, bool morton_order){
+__global__ void voxelize_tetra(voxinfo info, float* tet_data, long* greyscale_data, unsigned int* voxel_table, unsigned short* result){
 	size_t thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 	size_t stride = blockDim.x * gridDim.x;
 
@@ -269,10 +264,6 @@ __global__ void voxelize_tetra(voxinfo info, float* tet_data, long* greyscale_da
 			        // check if point p is on the "correct" side of all 4 triangles and thus inside the tetrahedron.
 			        if(PointInTetrahedron(A,B,C,D,P))
                     {
-					if (morton_order){
-						size_t location = mortonEncode_LUT(x, y, z);
-						setBit(voxel_table, location);
-					} else {
 						size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y)* static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z)* static_cast<size_t>(info.gridsize.y)* static_cast<size_t>(info.gridsize.z));
 						setBit(voxel_table, location);
                         result[location] = static_cast<unsigned short>(greyscale_data[tri_index]);
@@ -284,9 +275,8 @@ __global__ void voxelize_tetra(voxinfo info, float* tet_data, long* greyscale_da
 		thread_id += stride;
 	    }
 }
-}
 
-void voxelize(const voxinfo& v, float* element_data, long* greyscale_data, unsigned int* vtable, bool useThrustPath, unsigned short* result_array, bool use_tetra, bool morton_code) {
+void voxelize(const voxinfo& v, float* element_data, long* greyscale_data, unsigned int* vtable, bool useThrustPath, unsigned short* result_array, bool use_tetra) {
 	float elapsedTime;
 
 	// These are only used when we're not using UNIFIED memory
@@ -299,13 +289,6 @@ void voxelize(const voxinfo& v, float* element_data, long* greyscale_data, unsig
 	cudaEvent_t start_vox, stop_vox;
 	checkCudaErrors(cudaEventCreate(&start_vox));
 	checkCudaErrors(cudaEventCreate(&stop_vox));
-
-	// Copy morton LUT if we're encoding to morton
-	if (morton_code){
-		checkCudaErrors(cudaMemcpyToSymbol(morton256_x, host_morton256_x, 256 * sizeof(uint32_t)));
-		checkCudaErrors(cudaMemcpyToSymbol(morton256_y, host_morton256_y, 256 * sizeof(uint32_t)));
-		checkCudaErrors(cudaMemcpyToSymbol(morton256_z, host_morton256_z, 256 * sizeof(uint32_t)));
-	}
 
 	// Estimate best block and grid size using CUDA Occupancy Calculator
 	int blockSize;   // The launch configurator returned block size 
@@ -329,13 +312,13 @@ void voxelize(const voxinfo& v, float* element_data, long* greyscale_data, unsig
 
 		// Start voxelization
 		checkCudaErrors(cudaEventRecord(start_vox, 0));
-    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, greyscale_data, dev_vtable, dev_result, morton_code);}
-	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, greyscale_data, dev_vtable, dev_result, morton_code);}
+    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, greyscale_data, dev_vtable, dev_result);}
+	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, greyscale_data, dev_vtable, dev_result);}
 	}
 	else { // UNIFIED MEMORY 
 		checkCudaErrors(cudaEventRecord(start_vox, 0));
-    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, greyscale_data, vtable, result_array, morton_code);}
-	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, greyscale_data, vtable, result_array, morton_code);}
+    if (use_tetra){voxelize_tetra << <gridSize, blockSize >> > (v, element_data, greyscale_data, vtable, result_array);}
+	else {voxelize_triangle << <gridSize, blockSize >> > (v, element_data, greyscale_data, vtable, result_array);}
 	}
 
 	cudaDeviceSynchronize();

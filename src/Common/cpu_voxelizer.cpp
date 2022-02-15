@@ -22,22 +22,6 @@ namespace cpu_voxelizer {
 		}
 	}
 
-	// Encode morton code using LUT table
-	uint64_t mortonEncode_LUT(unsigned int x, unsigned int y, unsigned int z) {
-		uint64_t answer = 0;
-		answer = host_morton256_z[(z >> 16) & 0xFF] |
-			host_morton256_y[(y >> 16) & 0xFF] |
-			host_morton256_x[(x >> 16) & 0xFF];
-		answer = answer << 48 |
-			host_morton256_z[(z >> 8) & 0xFF] |
-			host_morton256_y[(y >> 8) & 0xFF] |
-			host_morton256_x[(x >> 8) & 0xFF];
-		answer = answer << 24 |
-			host_morton256_z[(z) & 0xFF] |
-			host_morton256_y[(y) & 0xFF] |
-			host_morton256_x[(x) & 0xFF];
-		return answer;
-	}
 // function to check if a point p is on the same side as another point X of a triangle (v1,v2,v3).
 // This is done by taking the dot product of both points with the normal vector.
 // If both dot products have the same sign X and p must both be on the same side of the triangle.
@@ -80,7 +64,7 @@ bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm
 
 
 	// Mesh voxelization method
- xt::pyarray<unsigned char>  cpu_voxelize_surface(voxinfo info, Mesh* themesh, bool morton_order) {
+ xt::pyarray<unsigned char>  cpu_voxelize_surface(voxinfo info, Mesh* themesh) {
     xt::pyarray<unsigned char> result= xt::zeros<unsigned char>({info.gridsize.x,info.gridsize.y,info.gridsize.z});
     Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
 
@@ -295,7 +279,7 @@ bool PointInTetrahedron(glm::vec3 v1, glm::vec3 v2,glm::vec3 v3,glm::vec3 v4,glm
 	}
 
 	// Mesh voxelization method
-void  cpu_voxelize_surface_solid(voxinfo info, Mesh* themesh, unsigned int* voxel_table, bool morton_order) {
+void  cpu_voxelize_surface_solid(voxinfo info, Mesh* themesh, unsigned int* voxel_table) {
 		Timer cpu_voxelization_timer; cpu_voxelization_timer.start();
 		// PREPASS
 		// Move all vertices to origin (can be done in parallel)

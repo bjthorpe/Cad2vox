@@ -70,7 +70,7 @@ __device__ inline bool TopLeftEdge(glm::vec2 v0, glm::vec2 v1)
 }
 
 //generate solid voxelization
-__global__ void voxelize_triangle_solid(voxinfo info, float* triangle_data, unsigned int* voxel_table, bool morton_order)
+__global__ void voxelize_triangle_solid(voxinfo info, float* triangle_data, unsigned int* voxel_table)
 {
 	size_t thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 	size_t stride = blockDim.x * gridDim.x;
@@ -124,13 +124,8 @@ __global__ void voxelize_triangle_solid(voxinfo info, float* triangle_data, unsi
 					int xmax = int(get_x_coordinate(n, v0, point) / info.unit.x - 0.5);
 					for (int x = 0; x <= xmax; x++)
 					{
-						if (morton_order){
-							size_t location = mortonEncode_LUT(x, y, z);
-							setBitXor(voxel_table, location);
-						} else {
 							size_t location = static_cast<size_t>(x) + (static_cast<size_t>(y)* static_cast<size_t>(info.gridsize.y)) + (static_cast<size_t>(z)* static_cast<size_t>(info.gridsize.y)* static_cast<size_t>(info.gridsize.z));
 							setBitXor(voxel_table, location);
-						}
 						continue;
 					}
 				}
@@ -143,7 +138,7 @@ __global__ void voxelize_triangle_solid(voxinfo info, float* triangle_data, unsi
 	}
 }
 
-void voxelize_solid(const voxinfo& v, float* triangle_data, unsigned int* vtable, bool useThrustPath, bool morton_code) {
+void voxelize_solid(const voxinfo& v, float* triangle_data, unsigned int* vtable, bool useThrustPath) {
 	float   elapsedTime;
 
 	// These are only used when we're not using UNIFIED memory
@@ -155,12 +150,6 @@ void voxelize_solid(const voxinfo& v, float* triangle_data, unsigned int* vtable
 	checkCudaErrors(cudaEventCreate(&start_vox));
 	checkCudaErrors(cudaEventCreate(&stop_vox));
 
-	// Copy morton LUT if we're encoding to morton
-	if (morton_code){
-		checkCudaErrors(cudaMemcpyToSymbol(morton256_x, host_morton256_x, 256 * sizeof(uint32_t)));
-		checkCudaErrors(cudaMemcpyToSymbol(morton256_y, host_morton256_y, 256 * sizeof(uint32_t)));
-		checkCudaErrors(cudaMemcpyToSymbol(morton256_z, host_morton256_z, 256 * sizeof(uint32_t)));
-	}
 
 	// Estimate best block and grid size using CUDA Occupancy Calculator
 	int blockSize;   // The launch configurator returned block size 
@@ -177,11 +166,11 @@ void voxelize_solid(const voxinfo& v, float* triangle_data, unsigned int* vtable
 		checkCudaErrors(cudaMemset(dev_vtable, 0, vtable_size));
 		// Start voxelization
 		checkCudaErrors(cudaEventRecord(start_vox, 0));
-		voxelize_triangle_solid << <gridSize, blockSize >> > (v, triangle_data, dev_vtable, morton_code);
+		voxelize_triangle_solid << <gridSize, blockSize >> > (v, triangle_data, dev_vtable);
 	}
 	else { // UNIFIED MEMORY 
 		checkCudaErrors(cudaEventRecord(start_vox, 0));
-		voxelize_triangle_solid << <gridSize, blockSize >> > (v, triangle_data, vtable, morton_code);
+		voxelize_triangle_solid << <gridSize, blockSize >> > (v, triangle_data, vtable);
 	}
 
 	cudaDeviceSynchronize();

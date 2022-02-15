@@ -19,19 +19,23 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     Wrapper Function to setup the CudaVox python bindings for the C++ code and provide the main user
     interface.
 
+    This function will first try to perform the voxelisation using a CUDA capible GPU. If that fails
+    or CUDA is unavalible it will fallback to running on CPU with the maximum number of avalible 
+    threads.
+    
     Parameters:
     input_file (string): Hopefully self explanitory, Our recomended (i.e. tested) format is Salome
     med. However, theortically any of the aprrox. 30 file formats suported by meshio will
     work. Provided they are using either tetrahedrons or triangles as there element type
     (see https://github.com/nschloe/meshio for the full list).
-
+    
     output_file (string): Filename for output as 8 bit greyscale tiff stack.
-
+    
     greyscale_file (string/None): csv file for defining custom Greyscale values. If not given the
     code evenly distributes greyscale values from 0 to 255 across all materials defined in the
     input file. It also auto-generates a file 'greyscale.csv' with the correct formatting which
     you can then tweak to your liking.
-
+    
     gridsize (+ve int): Number of voxels in each axis. That is you get a grid of grisize^3 voxels
     and the resulting output will be a tiff stack of gridsize by gridside images.
     Note: if you set this to any postive interger except 0 it will calculate unit length for you
@@ -41,25 +45,27 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     unit_length (+ve non-zero float): size of each voxel in mesh co-ordinate space. You can define
     this instead of Gridsize to caculate the number of voxels in each dimension, again based on max
     and min of the mesh grid. Again if using Gridsize leave this a default value (i.e. -1.0).
-
+    
     use_tetra (bool): flag to specifically use Tetrahedrons instead of Triangles. This only applies
     in the event that you have multiple element types defined in the same file. Normally the code
     defaults to triangles however this flag overides that.
-
+    
     cpu (bool): Flag to ignore any CUDA capible GPUS and instead use the OpenMp implementation.
     By default the code will first check for GPUS and only use OpenMP as a fallback. This flag
-    overrides that and forces the use of OpenMP.
-
+    overrides that and forces the use of OpenMP. Note: if you wish to use CPU permenantly, 
+    as noted in the build docs, you can safely compile CudaVox without CUDA in which case the code
+    simply skips the CUDA check altogether and permenantly runs on CPU.
+    
     Solid (bool): This Flag can be set if you want to auto-fill the interior when using a Surface
     Mesh (only applies to Triangles). If you intend to use this functionality there are three
     Caveats to briefly note here:
-
+    
     1) This flag will be ignored if you only supply Tetrahedron data or set use_tetra since in
     both cases that is by definition not a surface mesh.
-
+    
     2) The algorithm currently used is considerably slower and not robust (can lead to artifacts and
     holes in complex meshes).
-
+    
     3) Setting this flag turns off greyscale values (background becomes 0 and the mesh becomes 255).
     This is because we dont have any data as to what materials are inside the mesh so this seems a
     sensible default.
@@ -69,6 +75,7 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     issue either message b.j.thorpe@swansea.ac.uk or raise an issue on git repo as they can easily
     be fixed and incorporated into a future release.
     """
+    
     # read in data from file
     input_file = os.path.abspath(input_file)
     mesh = meshio.read(input_file)

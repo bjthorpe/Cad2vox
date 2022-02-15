@@ -2,7 +2,7 @@
 import pytest
 from CudaVox import Check_CUDA
 
-@pytest.mark.xfail
+@pytest.mark.CUDA
 def test_CUDA():
     # Call function to check for CUDA capable GPU
     result = Check_CUDA()

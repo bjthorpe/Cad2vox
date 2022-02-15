@@ -1,14 +1,16 @@
 #pragma once
 
 #include <stdint.h>
-#include "cuda.h"
-#include "cuda_runtime.h"
+
+#ifdef WITH_CUDA
+    #define GLM_FORCE_CUDA
+    #include "cuda.h"
+    #include "cuda_runtime.h"
+#endif
+
 #include <string>
 #include <fstream>
 #include <vector>
-
-#define GLM_FORCE_CUDA
-#define GLM_FORCE_PURE
 #include <glm/glm.hpp>
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 
@@ -24,6 +26,7 @@ inline xt::pyarray<T> glm_to_Xt(glm::vec3 a) {
 	return xt::pyarray<T>{a[0], a[1], a[2]};
 }
 
+#ifdef WITH_CUDA
 // Check if a voxel in the voxel table is set
 __device__ __host__ inline bool checkVoxel(size_t x, size_t y, size_t z, const glm::uvec3 gridsize, const unsigned int* vtable){
 	size_t location = x + (y*gridsize.y) + (z*gridsize.y*gridsize.z);
@@ -39,15 +42,37 @@ __device__ __host__ inline bool checkVoxel(size_t x, size_t y, size_t z, const g
 	}
 	return false;
 }
+#else
+// Check if a voxel in the voxel table is set
+    inline bool checkVoxel(size_t x, size_t y, size_t z, const glm::uvec3 gridsize, const unsigned int* vtable){
+	size_t location = x + (y*gridsize.y) + (z*gridsize.y*gridsize.z);
+	size_t int_location = location / size_t(32);
+	/*size_t max_index = (gridsize*gridsize*gridsize) / __int64(32);
+	if (int_location >= max_index){
+	fprintf(stdout, "Requested index too big: %llu \n", int_location);
+	fprintf(stdout, "X %llu Y %llu Z %llu \n", int_location);
+	}*/
+	unsigned int bit_pos = size_t(31) - (location % size_t(32)); // we count bit positions RtL, but array indices LtR
+	if ((vtable[int_location]) & (1 << bit_pos)){
+		return true;
+	}
+	return false;
+}
+#endif
 
 // An Axis Aligned box
 template <typename T>
 struct AABox {
 	T min;
 	T max;
+#ifdef WITH_CUDA
 	__device__ __host__ AABox() : min(T()), max(T()) {}
 	__device__ __host__ AABox(T min, T max) : min(min), max(max) {}
-};
+#else
+    AABox() : min(T()), max(T()) {}  
+    AABox(T min, T max) : min(min), max(max) {}
+#endif
+};  
 
 // Voxelisation info (global parameters for the voxelization process)
 struct voxinfo {
