@@ -38,19 +38,19 @@ jobs:
         mkdir "$HOME"/cmake
         ./cmake-install.sh --skip-license --prefix="$HOME"/cmake
         rm ./cmake-install.sh
-    
-    - name: Build xtl, xtensor and xtensor-python
-      run: |
-        git clone https://github.com/xtensor-stack/xtl.git
-        cd xtl && .$HOME/cmake/bin/cmake --prefix="$HOME"/cmake && make install && cd ..
-        git clone https://github.com/xtensor-stack/xtensor.git
-        cd xtensor && .$HOME/cmake/bin/cmake --prefix="$HOME"/cmake && make install && cd ..
-        git clone https://github.com/xtensor-stack/xtensor-python.git
-        cd xtensor-python && .$HOME/cmake/bin/cmake --prefix="$HOME"/cmake && make install && cd ...
 
     - name: Install pip packages
       run: |
         pip install -r requirements.txt
+
+    - name: Build xtl, xtensor and xtensor-python
+      run: |
+        git clone https://github.com/xtensor-stack/xtl.git
+        cd xtl && cmake --prefix="$HOME"/cmake && make install && cd ..
+        git clone https://github.com/xtensor-stack/xtensor.git
+        cd xtensor && cmake --prefix="$HOME"/cmake && make install && cd ..
+        git clone https://github.com/xtensor-stack/xtensor-python.git
+        cd xtensor-python && cmake --prefix="$HOME"/cmake && make install && cd ...
 
     - name: Build cad2vox and CudaVox
       run: |
