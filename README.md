@@ -13,12 +13,12 @@ For volume meshes (based on Tetrahedrons) it uses a simple algorithm to check if
 
 ### Dependencies
 The project has the following build dependencies:
- * [GLM](http://glm.g-truc.net/0.9.8/index.html) for vector math. Any recent version will do (if building Cudavox see bellow).
+ * [GLM](http://glm.g-truc.net/0.9.8/index.html) for vector math. Any recent version will do.
  * [OpenMP](https://www.openmp.org/)
  * [Python](https://www.python.org/) version 3.6 or higher.
 
-It also has the following optional dependenciy:
-* [Nvidia Cuda 8.0 (or higher)](https://developer.nvidia.com/cuda-toolkit) for CUDA + Thrust libraries (see building without CUDA for details).
+It also has the following optional dependency (see building without CUDA for details):
+* [Nvidia Cuda 8.0 (or higher)](https://developer.nvidia.com/cuda-toolkit) for CUDA + Thrust libraries.
 
  You will also need the following python packages:
  * cmake
@@ -31,10 +31,10 @@ It also has the following optional dependenciy:
  * meshio
  * pytest
 
-We recommend using [anaconda](https://anaconda.org/) as they are all available through the conda package manager and can be installed with the following two commands.
+We recommend using [anaconda](https://anaconda.org/) as the python dependencies are all available through the conda package manager (as well as CUDA through cudatookit). These can be installed with the following two commands.
 
 ```bash
-conda install cmake numpy pybind11 tifffile
+conda install cmake numpy pybind11 tifffile cudatoolkit
 
 conda install -c conda-forge xtensor xtl meshio xtensor-python
 ```
@@ -58,27 +58,27 @@ python3 setup_cad2vox.py install
 ```
 ### Building without CUDA
 
-It is possible to build cad2vox without CUDA or a GPU. To do this simply install all the other requirments
+It is possible to build cad2vox without CUDA or a GPU. To do this simply install all the requirments except CUDA (or cudatoolkit if using ananconda)
 and build as above i.e.
 
 ```python
-python3 OmpVox/setup_ompvox.py install
+python3 Cudavox/setup_cudavox.py install
 
 python3 setup_cad2vox.py install
 ```
 
-When building CudaVox Cmake will detect if CUDA is installed and configured corectly. If Cmake finds a sutible instalation of CUDA It will then automatically include all the aditional sorce and headerfiles nessacry to perfrom caculations on ether the GPU or CPU. If CUDA is not installed it will compile CudaVox to do caculations on the CPU only, using OpenMP. This is intened to provide options to the end user as CUDA is a rather large depenedecy that some users may not need.
+When building CudaVox Cmake will detect if CUDA is installed and configured corectly. If Cmake finds a sutible instalation of CUDA It will then automatically include all the aditional sorce and headerfiles nessacry to perfrom caculations on ether the GPU or CPU. If CUDA is not installed it will compile CudaVox to do caculations on the CPU only, using OpenMP. This is intened to provide options to the end user as CUDA is a rather large (not to mention proprietary) depenedecy that some users may not want/need.
 
-The OpenMP version is considerably slower, however, OpenMP is much more compatible and not tied to Nvidia hardware (in contrast pretty much any modern CPU and compiler should suport OpenMP out of the box). OpenMP is also useful for calculationbs that wont fit in VRAM, given that the memory requirements are in our experiance the main bottleneck. The current version works with 16-bit matricies and so requires 2 bytes per voxel. Given that the memory also scales cubically with Gridsize that can very quickly become a large problem.
+The OpenMP version is considerably slower, however, OpenMP is much more compatible and not tied to Nvidia hardware (in contrast pretty much any modern CPU and compiler should suport OpenMP out of the box). OpenMP is also useful for calculationbs that wont fit in VRAM. Given that the memory requirements are in our experiance the main bottleneck and the required memory also scales cubically with Gridsize. Memory can very quickly become a limiting factor.
 
 ## Automated testing
 
-Itr is good practice once Cad2vox is built and installed to test the functionallity. To this end we have included an autmated test suite using pytest that can be run as follows in the root directory of cad2vox:
+It is good practice once Cad2vox is built and installed to test the functionallity. To this end we have included an autmated test suite using pytest that can be run as follows in the root directory of cad2vox:
 
 ```bash
 pytest
 ```
-This will test the code under a variety of differnt senarios and if your setup is working coiretly should all pass (for the curious if you wish to see what we are testing the test functions are stored in the tests sub directory).
+This will test the code under a variety of differnt senarios and if your setup is working correctly should all pass (for those curious souls who wish to see what we are testing the test functions are stored in the tests sub directory).
 
 Note: if you are **NOT USING CUDA** some of the tests may fail. However, you can skip any tests related to CUDA with:
 
