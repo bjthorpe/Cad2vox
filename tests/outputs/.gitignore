@@ -1,0 +1,5 @@
+# Empty Output folder is needed for tests to complete 
+# So this tells git to keep an empty copy of this directory
+*
+# Except this .gitignore file
+!.gitignore
