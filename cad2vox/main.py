@@ -3,6 +3,7 @@ import csv
 from os.path import exists
 import errno
 import os
+from unittest.mock import NonCallableMock
 import numpy as np
 import tifffile as tf
 import meshio
@@ -105,7 +106,7 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     except AttributeError:
         all_mat_tags = {}
     if not all_mat_tags:
-        print ("[WARN] No materials defined so using default greyscale values.")
+        print ("[WARN] No materials defined in input file so using default greyscale values.")
         if use_tetra:
             greyscale_array = np.full((1,np.shape(tetra)[0]), 255, dtype=int)
         else:
@@ -115,22 +116,24 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
 # and the np array of ints that label the material in each element.
         if use_tetra:
             mat_ids = mesh.get_cell_data('cell_tags','tetra')
+            if(np.any(mat_ids==0)):
+                all_mat_tags[0]=['Un-Defined']
             mat_tag_dict = find_the_key(all_mat_tags, np.unique(mat_ids))
         else:
             mat_ids = mesh.get_cell_data('cell_tags','triangle')
+            if(np.any(mat_ids==0)):
+                all_mat_tags[0]=['Un-Defined']
             mat_tag_dict = find_the_key(all_mat_tags, np.unique(mat_ids))
 
         if greyscale_file is None:
-            #no file given so check if default file exists
-            if os.path.exists("greyscale.csv"):
-                greyscale_array = read_greyscale_file(os.path.abspath("greyscale.csv"),mat_ids)
-            else:
-                print("No Greyscale values given so they will be auto generated")
-                greyscale_array = generate_greyscale(mat_tag_dict,mat_ids)
-        else:
+            greyscale_file = 'greyscale.csv'
 
-            greyscale_file = os.path.abspath(greyscale_file)
+        greyscale_file = os.path.abspath(greyscale_file)
+        
+        if os.path.exists(greyscale_file):
             greyscale_array = read_greyscale_file(greyscale_file,mat_ids)
+        else:
+            greyscale_array = generate_greyscale(greyscale_file,mat_tag_dict,mat_ids)
     #define boundray box for mesh
     mesh_min_corner = np.array([np.min(points[:,0]), np.min(points[:,1]), np.min(points[:,2])])
     mesh_max_corner = np.array([np.max(points[:,0]), np.max(points[:,1]), np.max(points[:,2])])
@@ -138,7 +141,6 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     gridsize = check_voxinfo(unit_length,gridsize,mesh_min_corner,mesh_max_corner)
 
     #call c++ library to perform the voxelisation
-    print(np.shape(greyscale_array))
     vox =(run(Triangles=triangles,Tetra=tetra,Greyscale=greyscale_array, Points=points,
        Bbox_min=mesh_min_corner,Bbox_max=mesh_max_corner,solid=solid,
         gridsize=gridsize,use_tetra=use_tetra,forceCPU=cpu)).astype('uint8')
@@ -146,15 +148,15 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     tf.imwrite(output_file,vox,photometric='minisblack')
 
 
-def generate_greyscale(mat_tags,mat_ids):
+def generate_greyscale(greyscale_file,mat_tags,mat_ids):
     """ Function to generate Greyscale values if none are defined"""
     # create list of tags and greyscale values for each material used
     mat_index = list(mat_tags.keys())
     mat_names = list(mat_tags.values())
     num_mats = len(mat_names)
     greyscale_values = np.linspace(255/num_mats,255,endpoint=True,num= num_mats).astype(int)
-    print("writing greyscale values to greyscale.csv")
-    with open('greyscale.csv', 'w',encoding='UTF-8') as csvfile:
+    print("writing greyscale values to " + greyscale_file)
+    with open(greyscale_file, 'w',encoding='UTF-8') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["Material Name","index","Greyscale Value"])
         for i,names in enumerate(mat_names):
@@ -174,7 +176,7 @@ def read_greyscale_file(greyscale_file,mat_ids):
     if not exists(greyscale_file):
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), greyscale_file)
 
-    print("reading greyscale values from "+ greyscale_file)
+    print("reading greyscale values from " + greyscale_file)
     df = pd.read_csv(greyscale_file)
 
     for i,row in enumerate(df["Greyscale Value"]):
