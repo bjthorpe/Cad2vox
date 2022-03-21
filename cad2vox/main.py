@@ -4,6 +4,7 @@ from os.path import exists
 import errno
 import os
 from unittest.mock import NonCallableMock
+from PIL import Image, ImageOps
 import numpy as np
 import tifffile as tf
 import meshio
@@ -14,7 +15,7 @@ from .utill import check_greyscale,find_the_key,check_voxinfo
 
 
 def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-1.0,use_tetra=False,
-             cpu=False,solid=False):
+             cpu=False,solid=False,im_format=None):
     """
 
     Wrapper Function to setup the CudaVox python bindings for the C++ code and provide the main user
@@ -30,7 +31,9 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     work. Provided they are using either tetrahedrons or triangles as there element type
     (see https://github.com/nschloe/meshio for the full list).
     
-    output_file (string): Filename for output as 8 bit greyscale tiff stack.
+    output_file (string): Filename for output as 8 bit greyscale images. Note do not include the
+    extension as it will automatically be appended based on the requested image format.
+    The default is a virtual tiff stack other formats can be selected with the im_format option.
     
     greyscale_file (string/None): csv file for defining custom Greyscale values. If not given the
     code evenly distributes greyscale values from 0 to 255 across all materials defined in the
@@ -38,10 +41,10 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     you can then tweak to your liking.
     
     gridsize (+ve int): Number of voxels in each axis. That is you get a grid of grisize^3 voxels
-    and the resulting output will be a tiff stack of gridsize by gridside images.
-    Note: if you set this to any postive interger except 0 it will calculate unit length for you
-    based on the max and min of the mesh so in that case you don't set unit_length. i.e. leave
-    unit_length at it's default value. (see unit_length for details).
+    and the resulting output will be a series of gridsize by gridside images. Note: if you set
+    this to any postive interger except 0 it will calculate unit length for you based on the max
+    and min of the mesh so in that case you don't set unit_length. i.e. leave unit_length at
+    it's default value. (see unit_length for details).
 
     unit_length (+ve non-zero float): size of each voxel in mesh co-ordinate space. You can define
     this instead of Gridsize to caculate the number of voxels in each dimension, again based on max
@@ -75,12 +78,16 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     team so there has been no pressing need to fix them. However, if any of these become an
     issue either message b.j.thorpe@swansea.ac.uk or raise an issue on git repo as they can easily
     be fixed and incorporated into a future release.
+
+    im_format (string): The default output is a Tiff virtual stack written using tiffle. This option
+    however, when set allows you to output each slice in z as a seperate image in any format supported
+    by Pillow (see https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html for the full
+    list). Simply specify the format you require as a sting e.g. "png" Note: this has only been fully tested 
+    with png and jpeg so your millage may vary.
     """
     
     # read in data from file
     input_file = os.path.abspath(input_file)
-    mesh = meshio.read(input_file)
-    # read in data from file
     mesh = meshio.read(input_file)
 
     #extract np arrays of mesh data from meshio
@@ -145,8 +152,19 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
     vox =(run(Triangles=triangles,Tetra=tetra,Greyscale=greyscale_array, Points=points,
        Bbox_min=mesh_min_corner,Bbox_max=mesh_max_corner,solid=solid,
         gridsize=gridsize,use_tetra=use_tetra,forceCPU=cpu)).astype('uint8')
+    write_image(output_file,vox,im_format)
     # write resultant 3D NP array as tiff stack
-    tf.imwrite(output_file,vox,photometric='minisblack')
+
+def write_image(output_file,vox,im_format=None):
+    if (im_format):
+        for I in range(0,np.shape(vox)[2]):
+            im = Image.fromarray(vox[:,:,I])
+            im = ImageOps.grayscale(im)
+            im_output="{}_{}.{}".format(output_file,I,im_format)
+            im.save(im_output)
+    else:
+        im_output="{}.tiff".format(output_file)
+        tf.imwrite(im_output,vox,photometric='minisblack')
 
 
 def generate_greyscale(greyscale_file,mat_tags,mat_ids):

@@ -5,3 +5,4 @@ numpy
 pybind11
 pytest
 tifffile
+pillow
