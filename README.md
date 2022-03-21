@@ -97,7 +97,8 @@ The information about how to call/use the voxelise function can be viewed at any
 import cad2vox
 help(cad2vox.voxelise)
 ```
-voxelise(input_file, output_file, greyscale_file=None, gridsize=0, unit_length=-1.0, use_tetra=False, cpu=False, solid=False, im_format=None)
+    voxelise(input_file, output_file, greyscale_file=None, gridsize=0, unit_length=-1.0, use_tetra=False, cpu=False, solid=False, im_format=None)
+    
     Wrapper Function to setup the CudaVox python bindings for the C++ code and provide the main user
     interface.
 
