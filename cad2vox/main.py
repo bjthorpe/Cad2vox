@@ -107,10 +107,11 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
         all_mat_tags = {}
     if not all_mat_tags:
         print ("[WARN] No materials defined in input file so using default greyscale values.")
+        mat_tag_dict={0:['Un-Defined']}
         if use_tetra:
-            greyscale_array = np.full((1,np.shape(tetra)[0]), 255, dtype=int)
+            mat_ids = np.zeros(np.shape(tetra),dtype = int)
         else:
-            greyscale_array = np.full((1,np.shape(triangles)[0]), 255, dtype=int)
+            mat_ids = np.zeros(np.shape(triangles),dtype = int)
     else:
 # pull the dictionary containing material id's for the elemnt type (either triangles or tets)
 # and the np array of ints that label the material in each element.
@@ -125,15 +126,15 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
                 all_mat_tags[0]=['Un-Defined']
             mat_tag_dict = find_the_key(all_mat_tags, np.unique(mat_ids))
 
-        if greyscale_file is None:
-            greyscale_file = 'greyscale.csv'
+    if greyscale_file is None:
+        greyscale_file = 'greyscale.csv'
 
-        greyscale_file = os.path.abspath(greyscale_file)
+    greyscale_file = os.path.abspath(greyscale_file)
         
-        if os.path.exists(greyscale_file):
-            greyscale_array = read_greyscale_file(greyscale_file,mat_ids)
-        else:
-            greyscale_array = generate_greyscale(greyscale_file,mat_tag_dict,mat_ids)
+    if os.path.exists(greyscale_file):
+        greyscale_array = read_greyscale_file(greyscale_file,mat_ids)
+    else:
+        greyscale_array = generate_greyscale(greyscale_file,mat_tag_dict,mat_ids)
     #define boundray box for mesh
     mesh_min_corner = np.array([np.min(points[:,0]), np.min(points[:,1]), np.min(points[:,2])])
     mesh_max_corner = np.array([np.max(points[:,0]), np.max(points[:,1]), np.max(points[:,2])])
