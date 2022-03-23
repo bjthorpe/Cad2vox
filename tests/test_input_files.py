@@ -5,6 +5,7 @@ import meshio
 import os
 import tifffile as tf
 import numpy as np
+import glob
 from CudaVox import Check_CUDA
 
 # use the test case folder as their working directory
@@ -17,8 +18,12 @@ def cleanup():
     print("Starting Pytest")
     yield
     print("performing cleanup of output")
-    if os.path.exists("greyscale.csv"):
-        os.remove("greyscale.csv")
+    csv_files = glob.glob('*.csv')
+    for string in csv_files:
+        os.remove(string)
+    tiff_files = glob.glob('outputs/*.tiff')
+    for string in tiff_files:
+        os.remove(string)
 
 ############ tests for inputfile
 
@@ -57,11 +62,12 @@ def test_no_mat_data(cleanup):
     # read back in the output as an np array
     output = tf.imread('outputs/Sphere_nomats.tiff')
     os.remove('outputs/Sphere_nomats.tiff')
+    print(np.unique(output))
     #check the tiff stack contains only 0 and 255
     assert np.all([np.any(output == value) for value in np.sort([0,255])])
 
 ############## Tests for Greyscale files
-def test_greyscale_not_exist():
+def test_greyscale_not_exist(cleanup):
 # give a greyscale file that does not exist the code should create it
     cad2vox.voxelise("inputs/AMAZE_Sample.med","outputs/Sphere",
     greyscale_file="outputs/I-dont-exist.csv",gridsize = 100)
