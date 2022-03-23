@@ -14,7 +14,7 @@ from .utill import check_greyscale,find_the_key,check_voxinfo
 
 
 
-def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-1.0,use_tetra=False,
+def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=0.0,use_tetra=False,
              cpu=False,solid=False,im_format=None):
     """
 
@@ -48,7 +48,7 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=-
 
     unit_length (+ve non-zero float): size of each voxel in mesh co-ordinate space. You can define
     this instead of Gridsize to caculate the number of voxels in each dimension, again based on max
-    and min of the mesh grid. Again if using Gridsize leave this a default value (i.e. -1.0).
+    and min of the mesh grid. Again if using Gridsize leave this a default value (i.e. 0.0).
     
     use_tetra (bool): flag to specifically use Tetrahedrons instead of Triangles. This only applies
     in the event that you have multiple element types defined in the same file. Normally the code

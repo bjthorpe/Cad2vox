@@ -29,7 +29,7 @@ def check_unit_length(unit_length):
     """check that unit_length is a non-zero positive float."""
     if not isinstance(unit_length, float):
         raise TypeError("Invalid unit length. Must be an floating point value.")
-    if unit_length <= 0:
+    if unit_length < 0:
         raise TypeError("Invalid unit length. Must be an floating point value"
                         " that is greater than 0.")
 
@@ -49,19 +49,19 @@ def check_voxinfo(unit_length,gridsize,gridmin,gridmax):
     "actual" unit_length.
 
     """
-    if((gridsize==0) and (unit_length!=-1.0)):
+    if((gridsize==0) and (unit_length!=0.0)):
     # unit_length has been defined by user so check it is valid and
     # then calulate gridsize.
         check_unit_length(unit_length)
         gridsize = int((np.max(gridmax) - np.min(gridmin))/ unit_length)
         print("gridsize =", gridsize)
 
-    elif((gridsize!=0) and (unit_length==-1.0)):
+    elif((gridsize!=0) and (unit_length==0.0)):
     # gridsize has been defined by user so check it is valid.
     # Note: The calculation of unit_length is handled in c++.
         check_gridsize(gridsize)
 
-    elif((gridsize==0) and (unit_length==-1.0)):
+    elif((gridsize==0) and (unit_length==0.0)):
     #Neither has been defined
         raise TypeError("You must define one (and only one) of either Gridsize"
                         "or unit_length")
