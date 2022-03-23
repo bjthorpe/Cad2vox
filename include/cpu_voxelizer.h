@@ -29,11 +29,11 @@ public:
 #ifndef WITH_CUDA
 // Dummy Function to be called when cuda is not being used to simply print out a message and return false.
 // The equivlent function to call when using CUDA is defined in managed_mem.h"
-bool Check_CUDA(){
-    fprintf(stdout, "\n[Info] CUDA was not included when compiled.  \n");
-    fprintf(stdout, "[Info] Running on CPU with OpenMP.\n");
-    return false;
-}
+//bool Check_CUDA(){
+//    fprintf(stdout, "\n[Info] CUDA was not included when compiled.  \n");
+//    fprintf(stdout, "[Info] Running on CPU with OpenMP.\n");
+//    return false;
+//}
 #endif
 
 namespace cpu_voxelizer {

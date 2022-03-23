@@ -24,8 +24,9 @@
 // hopefully, make future development easier as we only need to maintain one version.
 xt::pyarray<unsigned short> voxelise_GPU(Mesh* themesh ,voxinfo info, unsigned int* vtable,
 					size_t vtable_size,bool use_tetra, bool useThrustPath, bool solid);
+#ifdef WITH_CUDA
 bool Check_CUDA();
-
+#endif
 /////
 
 namespace py = pybind11;
@@ -89,9 +90,11 @@ xt::pyarray<unsigned short> run_vox(xt::pyarray<long> Triangles, xt::pyarray<lon
 	// Compute space needed to hold voxel table (1 voxel / bit)
 	size_t vtable_size = static_cast<size_t>(ceil(static_cast<size_t>(voxelization_info.gridsize.x) * static_cast<size_t>(voxelization_info.gridsize.y) * static_cast<size_t>(voxelization_info.gridsize.z)) / 8.0f);
 	unsigned int* vtable; // Both voxelization paths (GPU and CPU) need this
-
+#ifdef WITH_CUDA
 	bool cuda_ok = Check_CUDA();
-	
+#else
+	bool cuda_ok = false
+#endif
 	if (!forceCPU && cuda_ok)
 	{
 	  // GPU VOXELIZATION
@@ -100,7 +103,7 @@ xt::pyarray<unsigned short> run_vox(xt::pyarray<long> Triangles, xt::pyarray<lon
      else { 
 		// CPU VOXELIZATION FALLBACK
        fprintf(stdout, "\n## CPU VOXELISATION \n");
-       if (forceCPU) {fprintf(stdout, "[Info] Doing CPU voxelization (forced using flag forceCPU)\n");}
+       if (forceCPU) {fprintf(stdout, "[Info] Doing CPU Voxelisation (forced using flag forceCPU)\n");}
        
        if(use_tetra){
 	 result = cpu_voxelizer::cpu_voxelize_volume(voxelization_info, themesh);
@@ -137,6 +140,7 @@ PYBIND11_MODULE(CudaVox, m) {
 	  "Bbox_max"_a,"gridsize"_a, "useThrustPath"_a = false,
 	  "forceCPU"_a = false, "solid"_a = false,
 	  "use_tetra"_a =true);
-
+#ifdef WITH_CUDA
     m.def("Check_CUDA",&Check_CUDA,"function to check if a CUDA GPU is present.");
+#endif
 }
