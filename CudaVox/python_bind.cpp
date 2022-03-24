@@ -93,7 +93,7 @@ xt::pyarray<unsigned short> run_vox(xt::pyarray<long> Triangles, xt::pyarray<lon
 #ifdef WITH_CUDA
 	bool cuda_ok = Check_CUDA();
 #else
-	bool cuda_ok = false
+	bool cuda_ok = false;
 #endif
 	if (!forceCPU && cuda_ok)
 	{
