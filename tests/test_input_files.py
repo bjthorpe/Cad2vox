@@ -6,7 +6,6 @@ import os
 import tifffile as tf
 import numpy as np
 import glob
-from CudaVox import Check_CUDA
 
 # use the test case folder as their working directory
 @pytest.fixture(autouse=True)
