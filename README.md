@@ -30,6 +30,7 @@ It also has the following optional dependency (see building without CUDA for det
  * xtensor-python
  * meshio
  * pytest
+ * pandas
  * pillow
 
 We recommend using [anaconda](https://anaconda.org/) as the python dependencies are all available through the conda package manager (as well as CUDA through cudatookit). These can be installed with the following two commands.
