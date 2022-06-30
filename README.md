@@ -9,7 +9,15 @@ For Surface meshes (based on triangles) CudaVox implements an optimised version 
 
 For volume meshes (based on Tetrahedrons) it uses a simple algorithm to check if a point P (taken as the centre of the voxel) is inside a tetrahedron defined by 4 vertices (A,B,C,D). This is achieved by calculating  the normal of the four triangles that make up the surface of the tetrahedron. Since these vectors will all point away from the centre of the tetrahedron we can simply check to see if the point P is on the opposite side of the plane for each of the four triangles. if this is true for all 4 planes then the point must be inside the tetrahedron (see https://stackoverflow.com/questions/25179693/how-to-check-whether-the-point-is-in-the-tetrahedron-or-not/51733522#51733522 for examples of this algorithm implemented in python).
 
-## Building and Installing
+## Installing
+cad2vox and CudaVox are both avalible as pip packages through pypi and as such can be installed with:
+```bash
+pip install cad2vox
+```
+
+Note: CudaVox is listed a requirement for cad2vox so will be installed automatically by pip.
+
+## Building from source
 
 ### Dependencies
 The project has the following build dependencies:
