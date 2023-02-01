@@ -4,7 +4,7 @@ PROJECT(cad2vox LANGUAGES CXX)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpic")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-set(CMAKE_CUDA_COMPILER "/usr/local/cuda-11.4/bin/nvcc")
+set(CMAKE_CUDA_COMPILER "/usr/local/cuda-11.5/bin/nvcc")
 FIND_PACKAGE(glm CONFIG REQUIRED)
 FIND_PACKAGE(OpenMP REQUIRED)
 FIND_PACKAGE(xtensor REQUIRED)
@@ -38,10 +38,10 @@ pybind11_add_module(CudaVox
 )
 
 if(CUDAToolkit_FOUND)
-TARGET_LINK_LIBRARIES(CudaVox PRIVATE OpenMP::OpenMP_CXX PRIVATE CUDA::cudart PRIVATE glm PRIVATE xtensor)
+TARGET_LINK_LIBRARIES(CudaVox PRIVATE OpenMP::OpenMP_CXX PRIVATE CUDA::cudart glm::glm PRIVATE xtensor)
 set_property(TARGET CudaVox PROPERTY CUDA_ARCHITECTURES 70 72 75 80)
 else()
-TARGET_LINK_LIBRARIES(CudaVox PRIVATE OpenMP::OpenMP_CXX PRIVATE glm PRIVATE xtensor)
+TARGET_LINK_LIBRARIES(CudaVox PRIVATE OpenMP::OpenMP_CXX PRIVATE glm::glm PRIVATE xtensor)
 endif()
 
 target_include_directories(CudaVox PUBLIC ${XTL_INCLUDE_DIRS} PUBLIC ${NUMPY_DIR} PUBLIC "include")

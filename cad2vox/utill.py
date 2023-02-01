@@ -64,6 +64,7 @@ def check_voxinfo(unit_length,gridsize,gridmin,gridmax):
 
     """
     import numpy as np
+    print("hello")
     #  check gridsize and unit_length are valid.
     check_gridsize(gridsize)
     check_unit_length(unit_length)

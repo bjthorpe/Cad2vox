@@ -118,7 +118,7 @@ xt::pyarray<unsigned short> run_vox(xt::pyarray<long> Triangles, xt::pyarray<lon
 	 fprintf(stdout, "[WARN] Using option solid to auto-fill surface data.\n");
 	 fprintf(stdout, "This option is quite slow and not very robust.\n Also custom greyscale values will be ignored.\n");
 	 cpu_voxelizer::cpu_voxelize_surface_solid(voxelization_info, themesh, vtable);
-	 result= xt::zeros<unsigned short>({gridsize,gridsize,gridsize});
+	 result= xt::zeros<unsigned short>({voxelization_info.gridsize.x,voxelization_info.gridsize.y,voxelization_info.gridsize.z});
 	 result = write_greyscale(result, voxelization_info, vtable);
        }
      }

@@ -69,12 +69,12 @@ class CMakeBuild(build_ext):
         subprocess.check_call(['cmake', '--build', '.'] + build_args,
                               cwd=self.build_temp)
 
-with open("../README.md", "r") as f:
+with open("README.md", "r") as f:
     long_description = f.read()
 
 setup(
     name="CudaVox",
-    version="1.5.6",
+    version="1.6.0",
     author="Ben Thorpe",
     author_email="b.j.thorpe@swansea.ac.uk",
     description="Python bindings for a C++ library to convert mesh models into Voxel images with OpenMp and CUDA",
