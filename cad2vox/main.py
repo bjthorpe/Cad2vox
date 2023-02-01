@@ -14,20 +14,20 @@ from .utill import check_greyscale,find_the_key,check_voxinfo
 
 
 
-def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=0.0,use_tetra=False,
+def voxelise(input_file,output_file,greyscale_file=None,gridsize=[0,0,0],unit_length=[0.0,0.0,0.0],use_tetra=False,
              cpu=False,solid=False,im_format=None):
     """
 
     Wrapper Function to setup the CudaVox python bindings for the C++ code and provide the main user
     interface.
 
-    This function will first try to perform the voxelisation using a CUDA capible GPU. If that fails
-    or CUDA is unavalible it will fallback to running on CPU with the maximum number of avalible 
+    This function will first try to perform the voxelisation using a CUDA capable GPU. If that fails
+    or CUDA is unavailable it will fallback to running on CPU with the maximum number of available 
     threads.
     
     Parameters:
-    input_file (string): Hopefully self explanitory, Our recomended (i.e. tested) format is Salome
-    med. However, theortically any of the aprrox. 30 file formats suported by meshio will
+    input_file (string): Hopefully self explanatory, Our recommended (i.e. tested) format is Salome
+    med. However, theoretically any of the approx. 30 file formats supported by meshio will
     work. Provided they are using either tetrahedrons or triangles as there element type
     (see https://github.com/nschloe/meshio for the full list).
     
@@ -40,25 +40,24 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=0
     input file. It also auto-generates a file 'greyscale.csv' with the correct formatting which
     you can then tweak to your liking.
     
-    gridsize (+ve int): Number of voxels in each axis. That is you get a grid of grisize^3 voxels
-    and the resulting output will be a series of gridsize by gridside images. Note: if you set
-    this to any postive interger except 0 it will calculate unit length for you based on the max
-    and min of the mesh so in that case you don't set unit_length. i.e. leave unit_length at
-    it's default value. (see unit_length for details).
+    gridsize (list of 3 +ve non-zero ints): Number of voxels in each axis. For the list [x,y,z] 
+    the resulting output will be a series of z images with x by y pixels. Note: if you set
+    this it will calculate unit length for you based on the max and min of the mesh 
+    Therefore you don't set unit_length.
 
-    unit_length (+ve non-zero float): size of each voxel in mesh co-ordinate space. You can define
-    this instead of Gridsize to caculate the number of voxels in each dimension, again based on max
-    and min of the mesh grid. Again if using Gridsize leave this a default value (i.e. 0.0).
+    unit_length (list of 3 +ve non-zero floats): size of each voxel in mesh co-ordinate space. 
+    You can define this instead of Gridsize to calculate the number of voxels in each dimension, 
+    again based on max and min of the mesh grid. If you are using unit_length do not set Gridsize.
     
     use_tetra (bool): flag to specifically use Tetrahedrons instead of Triangles. This only applies
     in the event that you have multiple element types defined in the same file. Normally the code
-    defaults to triangles however this flag overides that.
+    defaults to triangles however this flag overrides that.
     
-    cpu (bool): Flag to ignore any CUDA capible GPUS and instead use the OpenMp implementation.
+    cpu (bool): Flag to ignore any CUDA capable GPUS and instead use the OpenMp implementation.
     By default the code will first check for GPUS and only use OpenMP as a fallback. This flag
-    overrides that and forces the use of OpenMP. Note: if you wish to use CPU permenantly, 
+    overrides that and forces the use of OpenMP. Note: if you wish to use CPU permanently, 
     as noted in the build docs, you can safely compile CudaVox without CUDA in which case the code
-    simply skips the CUDA check altogether and permenantly runs on CPU.
+    simply skips the CUDA check altogether and permanently runs on CPU.
     
     Solid (bool): This Flag can be set if you want to auto-fill the interior when using a Surface
     Mesh (only applies to Triangles). If you intend to use this functionality there are three
@@ -74,16 +73,16 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=0
     This is because we dont have any data as to what materials are inside the mesh so this seems a
     sensible default.
 
-    The only reason 2 and 3 exist is because this functionaly is not activley being used by our
+    The only reason 2 and 3 exist is because this functionality is not actively being used by our
     team so there has been no pressing need to fix them. However, if any of these become an
     issue either message b.j.thorpe@swansea.ac.uk or raise an issue on git repo as they can easily
     be fixed and incorporated into a future release.
 
-    im_format (string): The default output is a Tiff virtual stack written using tiffle. This option
-    however, when set allows you to output each slice in z as a seperate image in any format supported
+    im_format (string): The default output is a Tiff virtual stack written using tiffile. This option
+    however, when set allows you to output each slice in z as a separate image in any format supported
     by Pillow (see https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html for the full
     list). Simply specify the format you require as a sting e.g. "png" Note: this has only been fully tested 
-    with png and jpeg so your millage may vary.
+    with png and jpeg so your mileage may vary.
     """
     
     # read in data from file
@@ -120,7 +119,7 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=0
         else:
             mat_ids = np.zeros(np.shape(triangles),dtype = int)
     else:
-# pull the dictionary containing material id's for the elemnt type (either triangles or tets)
+# pull the dictionary containing material id's for the element type (either triangles or tets)
 # and the np array of ints that label the material in each element.
         if use_tetra:
             mat_ids = mesh.get_cell_data('cell_tags','tetra')
@@ -142,6 +141,7 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=0,unit_length=0
         greyscale_array = read_greyscale_file(greyscale_file,mat_ids)
     else:
         greyscale_array = generate_greyscale(greyscale_file,mat_tag_dict,mat_ids)
+        
     #define boundray box for mesh
     mesh_min_corner = np.array([np.min(points[:,0]), np.min(points[:,1]), np.min(points[:,2])])
     mesh_max_corner = np.array([np.max(points[:,0]), np.max(points[:,1]), np.max(points[:,2])])

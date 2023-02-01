@@ -19,6 +19,6 @@ setup(
     ],
     python_requires='>=3.6',
     zip_safe=False,
-    install_requires=['CudaVox','numpy>=1.18','meshio','tifffile', 'pillow>=8.3', 'pandas', 'cmake>=3.22.0','pybind11'],
+    install_requires=['CudaVox','numpy>=1.19','meshio','tifffile', 'pillow>=8.3', 'pandas', 'cmake>=3.22.0','pybind11'],
     packages=['cad2vox']
 )

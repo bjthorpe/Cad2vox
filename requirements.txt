@@ -5,5 +5,5 @@ numpy>=1.19
 pybind11
 pytest
 tifffile
-pillow
+pillow==8.3
 pandas
