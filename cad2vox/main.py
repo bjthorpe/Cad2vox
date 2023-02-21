@@ -14,8 +14,7 @@ from .utill import check_greyscale,find_the_key,check_voxinfo
 
 
 
-def voxelise(input_file,output_file,greyscale_file=None,gridsize=[0,0,0],unit_length=[0.0,0.0,0.0],use_tetra=False,
-             cpu=False,solid=False,im_format=None):
+def voxelise(input_file,output_file,gridsize=[0,0,0],unit_length=[0.0,0.0,0.0],**kwargs):
     """
 
     Wrapper Function to setup the CudaVox python bindings for the C++ code and provide the main user
@@ -35,11 +34,6 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=[0,0,0],unit_le
     extension as it will automatically be appended based on the requested image format.
     The default is a virtual tiff stack other formats can be selected with the im_format option.
     
-    greyscale_file (string/None): csv file for defining custom Greyscale values. If not given the
-    code evenly distributes greyscale values from 0 to 255 across all materials defined in the
-    input file. It also auto-generates a file 'greyscale.csv' with the correct formatting which
-    you can then tweak to your liking.
-    
     gridsize (list of 3 +ve non-zero ints): Number of voxels in each axis. For the list [x,y,z] 
     the resulting output will be a series of z images with x by y pixels. Note: if you set
     this it will calculate unit length for you based on the max and min of the mesh 
@@ -49,6 +43,13 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=[0,0,0],unit_le
     You can define this instead of Gridsize to calculate the number of voxels in each dimension, 
     again based on max and min of the mesh grid. If you are using unit_length do not set Gridsize.
     
+    Optional kwargs:
+
+    greyscale_file (string/None): csv file for defining custom Greyscale values. If not given the
+    code evenly distributes greyscale values from 0 to 255 across all materials defined in the
+    input file. It also auto-generates a file 'greyscale.csv' with the correct formatting which
+    you can then tweak to your liking.
+
     use_tetra (bool): flag to specifically use Tetrahedrons instead of Triangles. This only applies
     in the event that you have multiple element types defined in the same file. Normally the code
     defaults to triangles however this flag overrides that.
@@ -83,8 +84,21 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=[0,0,0],unit_le
     by Pillow (see https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html for the full
     list). Simply specify the format you require as a sting e.g. "png" Note: this has only been fully tested 
     with png and jpeg so your mileage may vary.
+
+    Bbox_max/Bbox_min: 1 by 3 numpy array defining the x,y,z coordinates of the corners of the bounding box. 
+    If not defined the default is to place the bounding box around the mesh. However, if Bbox_max and Bbox_min
+    are defined it puts the bounding box at those coordinates with the mesh at the centre. Note it will throw 
+    a value Error if the centre of the mesh is not within the bounding box.
+
     """
-    
+    # Get optional kwargs or use defaults if not set
+    greyscale_file = kwargs.get('greyscale_file',None)
+    use_tetra = kwargs.get('use_tetra',False)
+    cpu = kwargs.get('cpu',False)
+    solid = kwargs.get('solid',False)
+    im_format = kwargs.get('im_format',None)
+    Bbox_max = kwargs.get('Bbox_max',None)
+    Bbox_min = kwargs.get('Bbox_min',None)
     # read in data from file
     input_file = os.path.abspath(input_file)
     mesh = meshio.read(input_file)
@@ -142,15 +156,21 @@ def voxelise(input_file,output_file,greyscale_file=None,gridsize=[0,0,0],unit_le
     else:
         greyscale_array = generate_greyscale(greyscale_file,mat_tag_dict,mat_ids)
         
-    #define boundray box for mesh
+    #define boundary box for mesh
     mesh_min_corner = np.array([np.min(points[:,0]), np.min(points[:,1]), np.min(points[:,2])])
     mesh_max_corner = np.array([np.max(points[:,0]), np.max(points[:,1]), np.max(points[:,2])])
+    mesh_centre = (mesh_max_corner - mesh_min_corner)/2
+
+    if Bbox_max == None and Bbox_min == None:
+        Bbox_max = mesh_max_corner
+        Bbox_min = mesh_min_corner
+
     #check the values that have been defined by the user
-    gridsize = check_voxinfo(unit_length,gridsize,mesh_min_corner,mesh_max_corner)
+    gridsize,unit_length = check_voxinfo(unit_length,gridsize,Box_min,Box_max)
 
     #call c++ library to perform the voxelisation
     vox =(run(Triangles=triangles,Tetra=tetra,Greyscale=greyscale_array, Points=points,
-       Bbox_min=mesh_min_corner,Bbox_max=mesh_max_corner,solid=solid,
+       Bbox_min=Bbox_min,Bbox_max=Bbox_max,solid=solid,
         gridsize=gridsize,use_tetra=use_tetra,forceCPU=cpu)).astype('uint8')
     write_image(output_file,vox,im_format)
     # write resultant 3D NP array as tiff stack

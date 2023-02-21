@@ -1,4 +1,7 @@
-1. conda stuff 
+1. 
+bash stuff:
+    sudo apt install libglm-dev
+conda stuff 
     conda create -n cad2vox python=3.9
     conda activate cad2vox
     conda install cmake numpy pybind11 tifffile pillow cudatoolkit

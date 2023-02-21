@@ -74,7 +74,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="CudaVox",
-    version="1.6.0",
+    version="1.6.5",
     author="Ben Thorpe",
     author_email="b.j.thorpe@swansea.ac.uk",
     description="Python bindings for a C++ library to convert mesh models into Voxel images with OpenMp and CUDA",

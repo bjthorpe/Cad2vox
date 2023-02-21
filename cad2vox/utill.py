@@ -64,7 +64,6 @@ def check_voxinfo(unit_length,gridsize,gridmin,gridmax):
 
     """
     import numpy as np
-    print("hello")
     #  check gridsize and unit_length are valid.
     check_gridsize(gridsize)
     check_unit_length(unit_length)
@@ -77,7 +76,7 @@ def check_voxinfo(unit_length,gridsize,gridmin,gridmax):
         print("calculated gridsize =", gridsize)
 
     elif((unit_length == [0.0,0.0,0.0]) and (0 not in gridsize)):
-        pass
+        unit_length = (gridmax-gridmin)*np.array(gridsize)
     elif((gridsize==[0,0,0]) and (unit_length==[0.0,0.0,0.0])):
         #Neither has been defined
         raise TypeError("You must define one (and only one) of either Gridsize"
@@ -92,4 +91,4 @@ def check_voxinfo(unit_length,gridsize,gridmin,gridmax):
 
 
     gridsize= np.array(gridsize)
-    return gridsize
+    return gridsize,unit_length
