@@ -1,0 +1,31 @@
+FROM sameli/manylinux2014_x86_64_cuda_11
+LABEL maintainer="Ben Thorpe <b.j.thorpe@swansea.ac.uk>"
+RUN yum install -y curl git gnupg \ 
+    wget nano cmake glm-devel
+#build xtl
+RUN /opt/python/cp36-cp36m/bin/pip install pybind11 numpy && \
+    cp -r /opt/_internal/cpython-3.6.15/lib/python3.6/site-packages/pybind11 /usr/lib/ && \
+    cp -r /opt/_internal/cpython-3.6.15/lib/python3.6/site-packages/numpy /usr/lib/ && \
+    git clone https://github.com/xtensor-stack/xtl.git && \
+    cd xtl && \
+    mkdir build && \
+    cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr/lib/xtl .. && \
+    make install && \
+    cd ../.. && \
+# build xtensor
+    git clone https://github.com/xtensor-stack/xtensor.git && \
+    cd xtensor && \
+    mkdir build && \
+    cd build && \
+    cmake -DCMAKE_PREFIX_PATH=/usr/lib/xtl -DCMAKE_INSTALL_PREFIX=/usr/lib/xtensor .. && \
+    make install && \
+    cd ../.. && \
+# build xtensor-python
+    git clone https://github.com/xtensor-stack/xtensor-python.git && \
+    cd xtensor-python  && \
+    mkdir build && \
+    cd build  && \
+    cmake -DCMAKE_PREFIX_PATH="/usr/lib" -DCMAKE_INSTALL_PREFIX="/usr/lib/xtensor-python" .. && \
+    make install
+

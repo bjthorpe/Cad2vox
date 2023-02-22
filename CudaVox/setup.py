@@ -69,19 +69,21 @@ class CMakeBuild(build_ext):
         subprocess.check_call(['cmake', '--build', '.'] + build_args,
                               cwd=self.build_temp)
 
-#with open("../README.md", "r") as f:
-#    long_description = f.read()
+with open("README.md", "r") as f:
+    long_description = f.read()
 
 setup(
     name="CudaVox",
-    version="1.0.0",
+    version="1.6.5",
     author="Ben Thorpe",
     author_email="b.j.thorpe@swansea.ac.uk",
     description="Python bindings for a C++ library to convert mesh models into Voxel images with OpenMp and CUDA",
- #   long_description=long_description,
- #   long_description_content_type="text/markdown",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url='https://github.com/bjthorpe/Cad2vox',
     classifiers=[
         "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: POSIX :: Linux"
     ],
     include_dirs=[numpy.get_include()],
@@ -89,5 +91,5 @@ setup(
     python_requires='>=3.6',
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,
-    install_requires=['numpy>=1.18','meshio'],
+    install_requires=['numpy>=1.18','meshio','tifffile', 'pillow>=8.3', 'pandas', 'cmake>=3.22.0','pybind11'],
 )

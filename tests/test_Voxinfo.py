@@ -35,5 +35,5 @@ def test_invalid_gridsize(gridsize):
 def test_set_both():
     # Test negative or non int value for gridsize gives error
     with pytest.raises(TypeError):
-        cad2vox.voxelise("inputs/AMAZE_Sample.med","outputs/AMAZE_Sample.tiff",gridsize=100,unit_length=0.0001)
+        cad2vox.voxelise("inputs/AMAZE_Sample.med","outputs/AMAZE_Sample.tiff",gridsize=[100,100,100],unit_length=[0.0001,0.0001,0.0001])
     assert TypeError

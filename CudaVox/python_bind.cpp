@@ -59,7 +59,7 @@ xt::pyarray<unsigned short> write_greyscale(xt::pyarray<unsigned short> result,v
 }
 
 xt::pyarray<unsigned short> run_vox(xt::pyarray<long> Triangles, xt::pyarray<long> Tetra, xt::pyarray<long> Greyscale, xt::pyarray<float> Points,
-		      xt::pyarray<float> Bbox_min, xt::pyarray<float> Bbox_max, unsigned int gridsize, bool useThrustPath = false,
+		      xt::pyarray<float> Bbox_min, xt::pyarray<float> Bbox_max, xt::pyarray<int> gridsize, bool useThrustPath = false,
 		      bool forceCPU = false, bool solid = true, bool use_tetra=true){
 
   	Timer t; t.start();
@@ -76,7 +76,7 @@ xt::pyarray<unsigned short> run_vox(xt::pyarray<long> Triangles, xt::pyarray<lon
 
 	glm::vec3 bbmin = Xt_to_glm(Bbox_min);
 	glm::vec3 bbmax = Xt_to_glm(Bbox_max);
-	glm::uvec3 voxgrid = glm::uvec3{gridsize,gridsize,gridsize};
+	glm::uvec3 voxgrid = Xt_to_glm(gridsize);
 	AABox<glm::vec3> bbox_mesh(bbmin,bbmax);
 	if (use_tetra){
 	  num_elem  = themesh->Volume.shape(0);
@@ -118,7 +118,7 @@ xt::pyarray<unsigned short> run_vox(xt::pyarray<long> Triangles, xt::pyarray<lon
 	 fprintf(stdout, "[WARN] Using option solid to auto-fill surface data.\n");
 	 fprintf(stdout, "This option is quite slow and not very robust.\n Also custom greyscale values will be ignored.\n");
 	 cpu_voxelizer::cpu_voxelize_surface_solid(voxelization_info, themesh, vtable);
-	 result= xt::zeros<unsigned short>({gridsize,gridsize,gridsize});
+	 result= xt::zeros<unsigned short>({voxelization_info.gridsize.x,voxelization_info.gridsize.y,voxelization_info.gridsize.z});
 	 result = write_greyscale(result, voxelization_info, vtable);
        }
      }
