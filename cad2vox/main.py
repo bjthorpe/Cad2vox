@@ -10,8 +10,7 @@ import tifffile as tf
 import meshio
 from CudaVox import run
 import pandas as pd
-from .utill import check_greyscale,find_the_key,check_voxinfo
-
+from utill import check_greyscale,find_the_key,check_voxinfo
 
 
 def voxelise(input_file,output_file,gridsize=[0,0,0],unit_length=[0.0,0.0,0.0],**kwargs):
@@ -34,16 +33,28 @@ def voxelise(input_file,output_file,gridsize=[0,0,0],unit_length=[0.0,0.0,0.0],*
     extension as it will automatically be appended based on the requested image format.
     The default is a virtual tiff stack other formats can be selected with the im_format option.
     
-    gridsize (list of 3 +ve non-zero ints): Number of voxels in each axis. For the list [x,y,z] 
-    the resulting output will be a series of z images with x by y pixels. Note: if you set
-    this it will calculate unit length for you based on the max and min of the mesh 
-    Therefore you don't set unit_length.
+    gridsize (list of 3 +ve non-zero ints): Number of voxels in each axis orientated as [x,y,z] 
+    the resulting output will be a series of z images with x by y pixels.
 
-    unit_length (list of 3 +ve non-zero floats): size of each voxel in mesh co-ordinate space. 
-    You can define this instead of Gridsize to calculate the number of voxels in each dimension, 
-    again based on max and min of the mesh grid. If you are using unit_length do not set Gridsize.
+    unit_length (list of 3 +ve non-zero floats): size of each voxel in mesh co-ordinate space.
+
+    *****************************************************************************************
+      Note: You need to set at least one of unit_length or Gridsize.
+      If you set a Gridsize but do not set unit_length it will calculate unit length for you 
+      with the image boundaries based on the max and min of the mesh. 
+                                              
+      Similarly, if you a unit_length but not GridSize it will calculate the number of
+      voxels in each dimension for you, again with the image boundaries based on max and min 
+      of the mesh.
+      
+      You can also define BOTH, in which case the size of the image boundary will be 
+      automatically calculated as Gridsize*unit_length. Note: you may also want to define the
+      optional parameter Bbbox_centre.
+    *****************************************************************************************
     
     Optional kwargs:
+
+    Bbox_centre: 
 
     greyscale_file (string/None): csv file for defining custom Greyscale values. If not given the
     code evenly distributes greyscale values from 0 to 255 across all materials defined in the
@@ -79,26 +90,35 @@ def voxelise(input_file,output_file,gridsize=[0,0,0],unit_length=[0.0,0.0,0.0],*
     issue either message b.j.thorpe@swansea.ac.uk or raise an issue on git repo as they can easily
     be fixed and incorporated into a future release.
 
-    im_format (string): The default output is a Tiff virtual stack written using tiffile. This option
-    however, when set allows you to output each slice in z as a separate image in any format supported
-    by Pillow (see https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html for the full
-    list). Simply specify the format you require as a sting e.g. "png" Note: this has only been fully tested 
-    with png and jpeg so your mileage may vary.
+    im_format (string): The default output is a virtual Tiff stack. This option however, when set 
+    allows you to output each slice as a separate image in any format supported by Pillow
+    (see https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html for the full
+    list). Simply specify the format you require as a sting e.g. im_format="png".
 
-    Bbox_max/Bbox_min: 1 by 3 numpy array defining the x,y,z coordinates of the corners of the bounding box. 
-    If not defined the default is to place the bounding box around the mesh. However, if Bbox_max and Bbox_min
-    are defined it puts the bounding box at those coordinates with the mesh at the centre. Note it will throw 
-    a value Error if the centre of the mesh is not within the bounding box.
+    Note: by default you will get a series of z images in the x-y plane. However, you can also control
+    the slice orientation with the "orientation" option.
 
+    Num_Threads: number of threads used by OMP in cpu calculations.  Note: this is ignored if cpu flag is
+    set to false and a suitable cuda capable gpu is detected. 
+
+    Bbox_Centre: location of the centre of the image boundary box. The default is "mesh" which centres 
+    the image over the mesh. you can optionally define this as any point in 3D space using a list of 
+    three floating point numbers [x,y,z] (in mesh units). Note to use this you will need to define both
+    Gridsize AND Unit_length as these are used to calculate the size of the box.
+
+    Orientation (String): String to define the orientation of the output images when using pillow. 
+    Default is "XY" must be one of "XY","XZ" or "YZ".
     """
-    # Get optional kwargs or use defaults if not set
+    # get Kwargs if set or use default values
     greyscale_file = kwargs.get('greyscale_file',None)
-    use_tetra = kwargs.get('use_tetra',False)
-    cpu = kwargs.get('cpu',False)
+    use_tetra=kwargs.get('use_tetra',False)
+    cpu=kwargs.get('cpu',False)
     solid = kwargs.get('solid',False)
     im_format = kwargs.get('im_format',None)
-    Bbox_max = kwargs.get('Bbox_max',None)
-    Bbox_min = kwargs.get('Bbox_min',None)
+    Num_Threads = kwargs.get('Num_threads',None)
+    Bbox_Centre = kwargs.get('Bbox_Centre',"mesh")
+    Orientation = kwargs.get('Orientation',"XY")
+
     # read in data from file
     input_file = os.path.abspath(input_file)
     mesh = meshio.read(input_file)
@@ -133,7 +153,7 @@ def voxelise(input_file,output_file,gridsize=[0,0,0],unit_length=[0.0,0.0,0.0],*
         else:
             mat_ids = np.zeros(np.shape(triangles),dtype = int)
     else:
-# pull the dictionary containing material id's for the element type (either triangles or tets)
+# pull the dictionary containing material id's for the elemnt type (either triangles or tets)
 # and the np array of ints that label the material in each element.
         if use_tetra:
             mat_ids = mesh.get_cell_data('cell_tags','tetra')
@@ -156,35 +176,54 @@ def voxelise(input_file,output_file,gridsize=[0,0,0],unit_length=[0.0,0.0,0.0],*
     else:
         greyscale_array = generate_greyscale(greyscale_file,mat_tag_dict,mat_ids)
         
-    #define boundary box for mesh
+    #define boundray box for mesh
     mesh_min_corner = np.array([np.min(points[:,0]), np.min(points[:,1]), np.min(points[:,2])])
     mesh_max_corner = np.array([np.max(points[:,0]), np.max(points[:,1]), np.max(points[:,2])])
-    mesh_centre = (mesh_max_corner - mesh_min_corner)/2
-
-    if Bbox_max == None and Bbox_min == None:
-        Bbox_max = mesh_max_corner
-        Bbox_min = mesh_min_corner
-
+    
     #check the values that have been defined by the user
-    gridsize,unit_length = check_voxinfo(unit_length,gridsize,Box_min,Box_max)
+    vox_dict = {'gridsize':gridsize,
+                "unit_length":unit_length,
+                "Bbox_centre":Bbox_Centre,
+                "mesh_min":mesh_min_corner,
+                "mesh_max":mesh_max_corner}
 
+    vox_info = check_voxinfo(**vox_dict)
+
+    # Set number of OMP Thread if needed
+    if Num_Threads != None:
+        os.environ["OMP_NUM_THREADS"] = Num_Threads
     #call c++ library to perform the voxelisation
     vox =(run(Triangles=triangles,Tetra=tetra,Greyscale=greyscale_array, Points=points,
-       Bbox_min=Bbox_min,Bbox_max=Bbox_max,solid=solid,
-        gridsize=gridsize,use_tetra=use_tetra,forceCPU=cpu)).astype('uint8')
-    write_image(output_file,vox,im_format)
+       Bbox_min=vox_info["Bbox_min"],Bbox_max=vox_info["Bbox_max"],solid=solid,
+        gridsize=vox_info["gridsize"],use_tetra=use_tetra,forceCPU=cpu)).astype('uint8')
+    write_image(output_file,vox,im_format,Orientation)
     # write resultant 3D NP array as tiff stack
 
-def write_image(output_file,vox,im_format=None):
+def write_image(output_file,vox,im_format=None,Orientation="XY"):
     if (im_format):
-        for I in range(0,np.shape(vox)[2]):
-            im = Image.fromarray(vox[:,:,I])
-            im = ImageOps.grayscale(im)
-            im_output="{}_{}.{}".format(output_file,I,im_format)
-            im.save(im_output)
+        if Orientation == "XY":
+            for I in range(0,np.shape(vox)[2]):
+                im = Image.fromarray(vox[:,:,I])
+                im = ImageOps.grayscale(im)
+                im_output="{}_{}.{}".format(output_file,I,im_format)
+                im.save(im_output)
+        elif Orientation == "XZ":
+            for I in range(0,np.shape(vox)[1]):
+                im = Image.fromarray(vox[:,I,:])
+                im = ImageOps.grayscale(im)
+                im_output="{}_{}.{}".format(output_file,I,im_format)
+                im.save(im_output)
+        elif Orientation == "YZ":
+            for I in range(0,np.shape(vox)[0]):
+                im = Image.fromarray(vox[I,:,:])
+                im = ImageOps.grayscale(im)
+                im_output="{}_{}.{}".format(output_file,I,im_format)
+                im.save(im_output)
+        else:
+            raise ValueError(f'Unknown Orientation {Orientation} must be one of "XY", "XZ" or "YZ".')
     else:
-        im_output="{}.tiff".format(output_file)
-        tf.imwrite(im_output,vox,photometric='minisblack')
+         im_output="{}.tiff".format(output_file)
+         tf.imwrite(im_output,vox,photometric='minisblack')
 
 
 def generate_greyscale(greyscale_file,mat_tags,mat_ids):

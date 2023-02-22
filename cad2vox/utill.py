@@ -45,20 +45,22 @@ def check_unit_length(unit_length):
             raise TypeError(f"Invalid unit length {i}. Must be an floating point value"
                             " that is greater than 0.")
 
-def check_voxinfo(unit_length,gridsize,gridmin,gridmax):
+def check_voxinfo(unit_length=[0.0,0.0,0.0],gridsize=[0,0,0],Bbox_centre="mesh",
+                  mesh_min=None,mesh_max=None):
     """
 
-    check to see that both unit_length and gridsize are valid and have not both
-    been defined at the same time.
+    check to see that both unit_length and gridsize are valid and at least one is defined.
+    After which it calculates the size of the image boundary box.
+
+     
 
     Note: the calculation of unit_length is in reality handled deep in the C++
     code. This is because the code incorporates a small displacement to the grid
     "epsilon" to try and avoid vertices falling directly on the grid
     (see "util.h" line 98). Thus this function is a bit of a hack in that it
-    always returns just the gridsize. Either the user supplied value
-    (assuming it is valid) or the calculated value from the unit length.
-    It then hands that off to the c++ code to calculate the
-    "actual" unit_length.
+    although we calculate the unit_length we never actually use it.
+
+    It just hands gridsize off to the c++ code to calculate the "actual" unit_length.
 
     Note this function converts gridsize from a list to an np array in the final step.
 
@@ -71,24 +73,34 @@ def check_voxinfo(unit_length,gridsize,gridmin,gridmax):
     if((gridsize==[0,0,0]) and (0.0 not in unit_length)):
     # unit_length has been defined by user so check it is valid and
     # then calculate gridsize.
-        for _,i in enumerate(gridsize):
-            gridsize[i] = int((gridmax[i] - gridmin[i])/ unit_length[i])
-        print("calculated gridsize =", gridsize)
-
+        for i,_ in enumerate(gridsize):
+            gridsize[i] = int((mesh_max[i] - mesh_min[i])/ unit_length[i])
+            Bbox_min = mesh_min
+            Bbox_max= mesh_max
+    # GridSize has been defined by user so check it is valid and
+    # then calculate unit_length.
     elif((unit_length == [0.0,0.0,0.0]) and (0 not in gridsize)):
-        unit_length = (gridmax-gridmin)*np.array(gridsize)
+        for i,_ in enumerate(gridsize):
+            unit_length[i] = float((mesh_max[i] - mesh_min[i])/ gridsize[i])
+        Bbox_min = mesh_min
+        Bbox_max= mesh_max
+
     elif((gridsize==[0,0,0]) and (unit_length==[0.0,0.0,0.0])):
         #Neither has been defined
-        raise TypeError("You must define one (and only one) of either Gridsize"
-                        "or unit_length")
+        raise TypeError("You must define at least one of either Gridsize or unit_length")
 
     else:
-        #Both have been defined by user in which case throw an error as we need
-        # at least one of them to calculate the other.
-        raise TypeError("Both Gridsize and unit length appear to have been" /
-                            " defined by the user. Please only define one.\n" /
-                            "Note: the quantity that you do define must not contain any zeros")
-
-
+        #Both have been defined by user in which case we calculate the image boundary's
+        if Bbox_Centre == 'mesh':
+            Bbox_Centre = (mesh_max-mesh_min)/2
+        Bbox_min = Bbox_centre - ((np.array(gridsize)/2)*unit_length)
+        Bbox_max = Bbox_centre + ((np.array(gridsize)/2)*unit_length)
+    
     gridsize= np.array(gridsize)
-    return gridsize,unit_length
+    Vox_info = {'gridsize':gridsize,
+                "unit_length":unit_length,
+                "Bbox_centre":Bbox_centre,
+                "Bbox_min":Bbox_min,
+                "Bbox_max":Bbox_max}
+    return Vox_info
+    
