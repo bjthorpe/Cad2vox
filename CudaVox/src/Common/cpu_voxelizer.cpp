@@ -434,7 +434,7 @@ void  cpu_voxelize_surface_solid(voxinfo info, Mesh* themesh, unsigned int* voxe
 			for (int z = t_bbox_grid.min.z; z <= t_bbox_grid.max.z; z++) {
 			  for (int y = t_bbox_grid.min.y; y <= t_bbox_grid.max.y; y++) {
 			    for (int x = t_bbox_grid.min.x; x <= t_bbox_grid.max.x; x++) {
-			      glm::vec3 P =  glm::vec3((x+0.5)*info.unit.x,(y+0.5)*info.unit.y,(z+0.5)*info.unit.x);
+			      glm::vec3 P =  glm::vec3((x+0.5)*info.unit.x,(y+0.5)*info.unit.y,(z+0.5)*info.unit.z);
 			      // check if point p is on the "correct" side of all 4 triangles and thus inside the tetrahedron.
 			      if(PointInTetrahedron(A,B,C,D,P))
 				{

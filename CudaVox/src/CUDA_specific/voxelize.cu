@@ -260,7 +260,7 @@ __global__ void voxelize_tetra(voxinfo info, float* tet_data, long* greyscale_da
 				for (int x = t_bbox_grid.min.x; x <= t_bbox_grid.max.x; x++){
 					// size_t location = x + (y*info.gridsize) + (z*info.gridsize*info.gridsize);
 					// if (checkBit(voxel_table, location)){ continue; }
-                    glm::vec3 P =  glm::vec3((x+0.5)*info.unit.x,(y+0.5)*info.unit.y,(z+0.5)*info.unit.x);
+                    glm::vec3 P =  glm::vec3((x+0.5)*info.unit.x,(y+0.5)*info.unit.y,(z+0.5)*info.unit.z);
 			        // check if point p is on the "correct" side of all 4 triangles and thus inside the tetrahedron.
 			        if(PointInTetrahedron(A,B,C,D,P))
                     {

@@ -4,7 +4,7 @@ bash stuff:
 conda stuff 
     conda create -n cad2vox python=3.9
     conda activate cad2vox
-    conda install cmake numpy pybind11 tifffile pillow cudatoolkit
+    conda install cmake numpy pybind11 tifffile pillow cudatoolkit pandas
     conda install -c conda-forge xtensor xtl meshio xtensor-python
 
     cd Cudavox
