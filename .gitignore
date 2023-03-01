@@ -194,3 +194,4 @@ cad2vox/__pycache__/*
 tests/__pycache__/*
 
 pip_build_instructions
+twine
