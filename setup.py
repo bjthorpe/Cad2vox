@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="cad2vox",
-    version="1.6.5",
+    version="1.7.0",
     author="Ben Thorpe",
     author_email="b.j.thorpe@swansea.ac.uk",
     description="A python library to provide the user interface for the CudaVox library",
