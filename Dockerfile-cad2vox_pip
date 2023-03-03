@@ -1,4 +1,4 @@
-FROM sameli/manylinux2014_x86_64_cuda_11
+FROM sameli/manylinux2014_x86_64_cuda_10
 LABEL maintainer="Ben Thorpe <b.j.thorpe@swansea.ac.uk>"
 RUN yum install -y curl git gnupg \ 
     wget nano cmake glm-devel

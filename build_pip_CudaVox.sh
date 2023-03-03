@@ -19,7 +19,3 @@ done
 #######################################
 cd ..
 
-# build Cad2Vox
-for PYBIN in /opt/python/*/bin; do
-"${PYBIN}/pip" wheel . -w /output
-done

@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="cad2vox",
-    version="1.7.0",
+    version="1.7.3",
     author="Ben Thorpe",
     author_email="b.j.thorpe@swansea.ac.uk",
     description="A python library to provide the user interface for the CudaVox library",
@@ -19,6 +19,6 @@ setup(
     ],
     python_requires='>=3.6',
     zip_safe=False,
-    install_requires=['CudaVox','numpy>=1.19','meshio','tifffile', 'pillow>=8.3', 'pandas', 'cmake>=3.22.0','pybind11'],
+    install_requires=['CudaVox>=1.7','numpy>=1.19','meshio','tifffile', 'pillow>=8.3', 'pandas', 'cmake>=3.22.0','pybind11'],
     packages=['cad2vox']
 )
